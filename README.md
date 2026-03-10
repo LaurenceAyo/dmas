@@ -10,7 +10,7 @@ npm install
 Step 3 — Set Up Environment Variables
 Create a .env.local file in the root of the project:
 
-# Windows (PowerShell)
+In windows (PowerShell/terminal) type this
 New-Item -ItemType File -Force -Path ".env.local"
 
 Then open .env.local and paste the following yung naka pin sa gc.
