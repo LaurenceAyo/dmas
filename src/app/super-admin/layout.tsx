@@ -32,11 +32,19 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       <aside className="w-52 bg-[#1a2e4a] flex flex-col py-6 px-3 shrink-0">
         
         {/* Avatar */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-gray-400 flex items-center justify-center border-2 border-blue-400">
-            <Users size={32} className="text-white" />
+        <div className="flex flex-col items-center mb-2 px-2">
+          <div className="w-full py-4 flex flex-col items-center">
+            <img 
+              src="/bucenglogo.png" 
+              alt="BUCENG Logo" 
+              className="w-20 h-20 object-contain mb-2" 
+            />
+            <span className="text-white font-bold text-xl tracking-tighter">BUCENG</span>
+            <p className="text-[10px] text-blue-300 uppercase tracking-widest font-medium">Bicol University</p>
           </div>
+          <div className="h-[1px] w-full bg-blue-900/50 " />
         </div>
+        
 
         {/* Nav Items */}
         <nav className="flex flex-col gap-1 flex-1">
@@ -46,7 +54,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
               <button
                 key={item.href}
                 onClick={() => router.push(item.href)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left cursor-pointer
                   ${pathname === item.href
                     ? 'bg-[#2d4a6e] text-white'
                     : 'text-blue-200 hover:bg-[#243d5c] hover:text-white'
@@ -62,7 +70,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 px-3 py-2.5 text-red-400 hover:text-red-300 hover:bg-[#243d5c] rounded-lg text-sm font-medium transition-all mt-4"
+          className="flex items-center gap-2 px-3 py-2.5 text-red-400 hover:text-red-300 hover:bg-[#243d5c] rounded-lg text-sm font-medium transition-all mt-4 cursor-pointer w-full justify-center"
         >
           <LogOut size={18} />
           Log Out

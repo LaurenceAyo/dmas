@@ -10,14 +10,8 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error && data.user) {
-      // Check if email is from bicol-u.edu.ph
-      const email = data.user.email ?? ''
-      if (!email.endsWith('@bicol-u.edu.ph')) {
-        await supabase.auth.signOut()
-        return NextResponse.redirect(`${origin}/login?error=unauthorized_domain`)
-      }
 
-      // Get user role and redirect accordingly
+      // Get role from profiles table
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
