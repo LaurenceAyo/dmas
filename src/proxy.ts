@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -24,9 +24,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow auth callback to always pass through
-  if (pathname.startsWith('/auth')) {
+  /*if (pathname.startsWith('/auth')) {
     return supabaseResponse
-  }
+  }*/
+
+  if (request.nextUrl.pathname.startsWith('/super-admin/add-new')) {
+  return NextResponse.next()
+}
 
   // If not logged in, redirect to login
   if (!user && !pathname.startsWith('/login') && !pathname.startsWith('/register')) {
