@@ -4,12 +4,14 @@ import { useState, useRef, useEffect } from 'react'
 import { Filter, Search, Bell, ChevronLeft, ChevronRight, ChevronDown, X, Eye } from 'lucide-react'
 
 // Custom dropdown component – now supports both string[] and { label: string, value: string }[]
-function CustomSelect({ options, value, onChange, placeholder, minWidth }: {
+// Accepts an optional `error` prop to show red border when true
+function CustomSelect({ options, value, onChange, placeholder, minWidth, error = false }: {
   options: string[] | { label: string; value: string }[]
   value: string
   onChange: (val: string) => void
   placeholder: string
   minWidth: string
+  error?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -37,13 +39,16 @@ function CustomSelect({ options, value, onChange, placeholder, minWidth }: {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+        className={`w-full flex items-center justify-between gap-2 px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition cursor-pointer
+          ${error ? 'border-red-500' : 'border-gray-200'}
+          focus:outline-none focus:ring-2 focus:ring-blue-200`}
       >
         <span className="truncate">{selectedLabel || placeholder}</span>
         <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-60 overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-40 overflow-y-auto">
+          {/* Adjust max-h-40 to change dropdown panel height (e.g., max-h-32 for shorter, max-h-48 for taller) */}
           {normalizedOptions.map((option) => (
             <button
               key={option.value}
@@ -92,6 +97,7 @@ export default function DocumentProgressPage() {
   const [remarks, setRemarks] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
 
   // Reset modal fields when a new document is opened
   useEffect(() => {
@@ -101,6 +107,7 @@ export default function DocumentProgressPage() {
       setRemarks('')
       setSubmitError('')
       setShowConfirmModal(false)
+      setShowSuccessModal(false)
     }
   }, [selectedDoc])
 
@@ -158,6 +165,9 @@ export default function DocumentProgressPage() {
 
   // Options for Action Taken dropdown – updated "Pending" to "Pending Approval"
   const actionOptions = ['Received', 'Approved', 'Pending Approval', 'Released', 'Denied']
+
+  // Shorter list for Corresponding Office dropdown (as per image)
+  const correspondingOfficeOptions = ['BAC', 'Associate Dean', 'Accounting', 'HR', 'Board']
 
   // ------------------------------------------------------------
   // FILTERING LOGIC
@@ -233,14 +243,18 @@ export default function DocumentProgressPage() {
   }
 
   const handleConfirmSubmit = () => {
-    // Perform submit action (e.g., send data to server)
-    alert('Submitted successfully!') // Replace with actual logic
-    setSelectedDoc(null) // Close main modal
-    setShowConfirmModal(false) // Close confirmation modal
+    // Close confirmation modal, open success modal
+    setShowConfirmModal(false)
+    setShowSuccessModal(true)
   }
 
   const handleCancelConfirm = () => {
     setShowConfirmModal(false)
+  }
+
+  const handleSuccessOk = () => {
+    setShowSuccessModal(false)
+    setSelectedDoc(null) // Close main modal
   }
 
   return (
@@ -318,7 +332,7 @@ export default function DocumentProgressPage() {
           />
 
           {(selectedType || selectedDept || selectedStatus || searchQuery) && (
-            <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline ml-1">
+            <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline ml-1 cursor-pointer">
               Clear
             </button>
           )}
@@ -405,7 +419,7 @@ export default function DocumentProgressPage() {
       </div>
 
       {/* ============================================================
-          DOCUMENT DETAIL MODAL – with working Clear and Submit + confirmation modal
+          DOCUMENT DETAIL MODAL – with red borders on empty required fields after failed submit
           ============================================================ */}
       {selectedDoc && (
         <div
@@ -463,6 +477,14 @@ export default function DocumentProgressPage() {
                   {/* Metadata – each on its own line */}
                   <div className="space-y-1">
                     <div>
+                      <span className="text-xs font-medium text-gray-600">Submitting Department:</span>{' '}
+                      <span className="text-xs text-gray-800">{selectedDoc.department}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-600">Submitted By:</span>{' '}
+                      <span className="text-xs text-gray-800">{selectedDoc.submittedBy}</span>
+                    </div>
+                    <div>
                       <span className="text-xs font-medium text-gray-600">Date Received:</span>{' '}
                       <span className="text-xs text-gray-800">{selectedDoc.dateReceived}</span>
                     </div>
@@ -470,37 +492,31 @@ export default function DocumentProgressPage() {
                       <span className="text-xs font-medium text-gray-600">Last Update:</span>{' '}
                       <span className="text-xs text-gray-800">{selectedDoc.lastUpdate}</span>
                     </div>
-                    <div>
-                      <span className="text-xs font-medium text-gray-600">Submitted By:</span>{' '}
-                      <span className="text-xs text-gray-800">{selectedDoc.submittedBy}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-gray-600">Submitting Department:</span>{' '}
-                      <span className="text-xs text-gray-800">{selectedDoc.department}</span>
-                    </div>
                   </div>
 
-                  {/* Action Taken dropdown – updated options */}
+                  {/* Action Taken dropdown – required */}
                   <div>
-                    <p className="text-xs font-medium text-gray-700 mb-1">Action Taken:</p>
+                    <p className="text-xs font-medium text-gray-700 mb-1">Action Taken</p>
                     <CustomSelect
                       options={actionOptions}
                       value={actionTaken}
                       onChange={setActionTaken}
                       placeholder="Select action"
                       minWidth="w-full"
+                      error={submitError && !actionTaken}
                     />
                   </div>
 
-                  {/* Corresponding Office dropdown */}
+                  {/* Corresponding Office dropdown – using shorter options list */}
                   <div>
-                    <p className="text-xs font-medium text-gray-700 mb-1">Corresponding Office:</p>
+                    <p className="text-xs font-medium text-gray-700 mb-1">Corresponding Office</p>
                     <CustomSelect
-                      options={departments}
+                      options={correspondingOfficeOptions}
                       value={corrOffice}
                       onChange={setCorrOffice}
                       placeholder="Select office"
                       minWidth="w-full"
+                      error={submitError && !corrOffice}
                     />
                   </div>
                 </div>
@@ -509,15 +525,16 @@ export default function DocumentProgressPage() {
               {/* Separator after columns */}
               <hr className="border-gray-100 my-3" />
 
-              {/* Remarks with state */}
+              {/* Remarks with state – required */}
               <div className="mb-3">
-                <p className="text-xs font-medium text-gray-700 mb-1">Remarks:</p>
+                <p className="text-xs font-medium text-gray-700 mb-1">Remarks</p>
                 <textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   placeholder="Please write some remarks...."
                   rows={2}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+                  className={`w-full border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none
+                    ${submitError && !remarks.trim() ? 'border-red-500' : 'border-gray-200'}`}
                 />
               </div>
 
@@ -530,13 +547,13 @@ export default function DocumentProgressPage() {
               <div className="flex justify-end gap-2">
                 <button
                   onClick={handleClear}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   Clear
                 </button>
                 <button
                   onClick={handleSubmitClick}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition"
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition cursor-pointer"
                 >
                   Submit
                 </button>
@@ -572,6 +589,29 @@ export default function DocumentProgressPage() {
                     Confirm
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================
+              SUCCESS MODAL – appears after confirmation
+              ============================================================ */}
+          {showSuccessModal && (
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] px-4"
+              onClick={handleSuccessOk}
+            >
+              <div
+                className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="text-sm text-gray-800 mb-4">Document has been submitted successfully.</p>
+                <button
+                  onClick={handleSuccessOk}
+                  className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition cursor-pointer"
+                >
+                  OK
+                </button>
               </div>
             </div>
           )}
