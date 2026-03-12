@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Search, Bell, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Bell, ChevronLeft, ChevronRight, Clock, FileCheck, XCircle } from 'lucide-react'
 
 // ── Mock Data ──────────────────────────────────────────────────────────────
 const mockDocuments = [
@@ -34,12 +34,6 @@ const initialNotifications = [
   { id: 4, msg: 'New Document submitted by Jane Doe', time: '1 hr ago', type: 'info' },
 ]
 
-const stats = [
-  { label: 'Pending Review',  value: 20, bg: 'bg-orange-50', icon: 'text-orange-400', border: 'border-orange-100' },
-  { label: 'Approved Today',  value: 20, bg: 'bg-green-50',  icon: 'text-green-500',  border: 'border-green-100'  },
-  { label: 'Denied Today',    value: 20, bg: 'bg-red-50',    icon: 'text-red-400',    border: 'border-red-100'    },
-]
-
 // ── Helper Function: Status Colors ─────────────────────────────────────────
 const getStatusColor = (status) => {
   switch (status) {
@@ -55,38 +49,62 @@ const getStatusColor = (status) => {
       return 'bg-gray-50 text-gray-600 border-gray-200'
   }
 }
+const stats = [
+  { label: 'Approved',         value: 20, bg: 'bg-green-50',  iconColor: 'text-green-500',  border: 'border-green-100',  Icon: FileCheck },
+  { label: 'Denied',           value: 20, bg: 'bg-red-50',    iconColor: 'text-red-400',    border: 'border-red-100',    Icon: XCircle },
+  { label: 'Pending Review', value: 20, bg: 'bg-orange-50', iconColor: 'text-orange-400', border: 'border-orange-100', Icon: Clock },
+]
 
 export default function OfficeHeadDashboardPage() {
   const [search, setSearch] = useState('')
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications] = useState(initialNotifications)
   const notificationRef = useRef<HTMLDivElement>(null)
-
-  // ── Pagination State & Logic ─────────────────────────────────────────────
+  const [activeStatusFilter, setActiveStatusFilter] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 5
+  const stats = [
+    { 
+      label: 'Pending Review', 
+      statusKey: 'Pending Review', 
+      value: mockDocuments.filter(d => d.status === 'Pending Review').length, 
+      bg: 'bg-orange-50', iconColor: 'text-orange-400', border: 'border-orange-100', activeRing: 'ring-orange-400', Icon: Clock 
+    },
+    { 
+      label: 'Approved Today', 
+      statusKey: 'Approved', 
+      value: mockDocuments.filter(d => d.status === 'Approved').length, 
+      bg: 'bg-green-50', iconColor: 'text-green-500', border: 'border-green-100', activeRing: 'ring-green-500', Icon: FileCheck 
+    },
+    { 
+      label: 'Denied Today', 
+      statusKey: 'Denied', 
+      value: mockDocuments.filter(d => d.status === 'Denied').length, 
+      bg: 'bg-red-50', iconColor: 'text-red-400', border: 'border-red-100', activeRing: 'ring-red-400', Icon: XCircle 
+    },
+  ]
 
-  // 1. Filter the data first based on search
-  const filtered = mockDocuments.filter(d =>
-    search === '' ||
-    d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.department.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = mockDocuments.filter(d => {
+    const matchesSearch = search === '' || 
+      d.name.toLowerCase().includes(search.toLowerCase()) || 
+      d.department.toLowerCase().includes(search.toLowerCase())
+    
+    const matchesStatus = activeStatusFilter === 'All' || d.status === activeStatusFilter
 
-  // 2. Reset to page 1 if the user starts typing a new search
+    return matchesSearch && matchesStatus
+  })
+
   useEffect(() => {
     setCurrentPage(1)
-  }, [search])
+  }, [search, activeStatusFilter])
 
-  // 3. Calculate Math for Pagination
+  // Calculate Math for Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
   
-  // 4. Slice the array for the current page
   const paginatedDocs = filtered.slice(startIndex, endIndex)
 
-  // ── Click Outside Logic ──────────────────────────────────────────────────
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
@@ -96,6 +114,14 @@ export default function OfficeHeadDashboardPage() {
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [notificationRef])
+
+  const handleStatClick = (statusKey) => {
+    if (activeStatusFilter === statusKey) {
+      setActiveStatusFilter('All')
+    } else {
+      setActiveStatusFilter(statusKey)
+    }
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50/50">
@@ -158,48 +184,67 @@ export default function OfficeHeadDashboardPage() {
       {/* ── Body ── */}
       <div className="flex-1 overflow-y-auto px-8 py-8">
 
-        {/* Stat Cards */}
+        {/* Stat Cards - UPDATED to be clickable */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-          {stats.map((s) => (
-            <div key={s.label} className={`bg-white rounded-2xl border ${s.border} shadow-sm px-6 py-5 flex items-center gap-4 hover:shadow-md transition-shadow`}>
-              <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
-                <FileText size={20} className={s.icon} />
+          {stats.map((s) => {
+            const isActive = activeStatusFilter === s.statusKey;
+            
+            return (
+              <div 
+                key={s.label} 
+                onClick={() => handleStatClick(s.statusKey)}
+                className={`bg-white rounded-2xl border ${s.border} shadow-sm px-6 py-5 flex items-center gap-4 cursor-pointer transition-all duration-200
+                  ${isActive ? `ring-2 ${s.activeRing} shadow-md scale-[1.02] bg-gray-50/50` : 'hover:shadow-md hover:bg-gray-50'}
+                `}
+              >
+                <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
+                  <s.Icon size={18} className={s.iconColor} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-800 leading-none">{s.value}</p>
+                  <p className="text-xs text-gray-400 mt-1 leading-tight">{s.label}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-black text-gray-800 leading-none">{s.value}</p>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1.5">{s.label}</p>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Recent Documents Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100">
-            <h2 className="text-base font-bold text-gray-800">Recent Received Documents</h2>
+          <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+            <h2 className="text-base font-bold text-gray-800">
+              {activeStatusFilter === 'All' ? 'Recent Received Documents' : `${activeStatusFilter} Documents`}
+            </h2>
+            {activeStatusFilter !== 'All' && (
+              <button 
+                onClick={() => setActiveStatusFilter('All')}
+                className="text-xs text-blue-500 hover:text-blue-700 font-medium cursor-pointer"
+              >
+                Clear Filter
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead>
-                <tr className="bg-gray-50/50 text-gray-400 text-[11px] uppercase tracking-widest font-bold">
-                  <th className="px-6 py-4">Document Name</th>
-                  <th className="px-6 py-4">Document Type</th>
-                  <th className="px-6 py-4">Submitting Department</th>
-                  <th className="px-6 py-4">Date Received</th>
-                  <th className="px-6 py-4">Status</th>
+                <tr className="border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wide">
+                  <th className="text-left px-6 py-3 font-semibold">Document Name</th>
+                  <th className="text-left px-6 py-3 font-semibold">Document Type</th>
+                  <th className="text-left px-6 py-3 font-semibold">Submitting Department</th>
+                  <th className="text-left px-6 py-3 font-semibold">Date Received</th>
+                  <th className="text-left px-6 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {paginatedDocs.length > 0 ? (
                   paginatedDocs.map((doc) => (
                     <tr key={doc.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-6 py-4 text-gray-800 font-semibold">{doc.name}</td>
-                      <td className="px-6 py-4 text-gray-500 text-xs">{doc.type}</td>
-                      <td className="px-6 py-4 text-gray-500 text-xs">{doc.department}</td>
-                      <td className="px-6 py-4 text-gray-400 text-xs">{doc.date}</td>
+                      <td className="px-6 py-3.5 text-gray-700 font-medium">{doc.name}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{doc.type}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{doc.department}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{doc.date}</td>
                       <td className="px-6 py-4">
-                        {/* Status Badge with Dynamic Color */}
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusColor(doc.status)}`}>
                           {doc.status}
                         </span>
@@ -209,18 +254,18 @@ export default function OfficeHeadDashboardPage() {
                 ) : (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-400 text-sm">
-                      No documents found.
+                      No documents found for this status.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-
-          {/* Pagination Footer */}
+        </div>
+{/* Pagination Footer */}
           <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100 gap-4 bg-gray-50/30">
             <p className="text-xs font-medium text-gray-500">
-              Showing <span className="font-bold text-gray-800">{filtered.length === 0 ? 0 : startIndex + 1}</span> to <span className="font-bold text-gray-800">{Math.min(endIndex, filtered.length)}</span> of <span className="font-bold text-gray-800">{filtered.length}</span> documents
+              Showing <span className="font-regular">{filtered.length === 0 ? 0 : startIndex + 1}</span> to <span className="font-regular">{Math.min(endIndex, filtered.length)}</span> of <span className="font-">{filtered.length}</span> documents
             </p>
             
             <div className="flex items-center gap-1.5">
@@ -232,7 +277,6 @@ export default function OfficeHeadDashboardPage() {
                 <ChevronLeft size={16} className="text-gray-600" />
               </button>
               
-              {/* Dynamic Page Numbers */}
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <button
                   key={page}
@@ -256,9 +300,7 @@ export default function OfficeHeadDashboardPage() {
               </button>
             </div>
           </div>
-        </div>
-
       </div>
     </div>
   )
-}     
+}
