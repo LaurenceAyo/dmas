@@ -51,7 +51,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               <button
                 key={item.href}
                 onClick={() => router.push(item.href)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full text-left cursor-pointer
                   ${pathname === item.href
                     ? 'bg-[#2d4a6e] text-white'
                     : 'text-blue-200 hover:bg-[#243d5c] hover:text-white'
