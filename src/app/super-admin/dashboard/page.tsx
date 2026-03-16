@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Search, Bell, FileText, CheckCircle, XCircle, Clock, ArrowRight, MoreVertical, Send, FileCheck, ClipboardList } from 'lucide-react'
+import { Search, Bell, FileText, CheckCircle, XCircle, Clock, ArrowRight, MoreVertical, Send, FileCheck, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
 const initialNotifications = [
@@ -17,8 +17,8 @@ const mockDocuments = [
   { id: 3, name: 'Procurement Request', type: 'Financial Document', department: 'BAC', date: '03/24/2025', status: 'Received' },
   { id: 4, name: 'Leave of Absence Form', type: 'HR Document', department: 'Associate Dean', date: '03/24/2025', status: 'Received' },
   { id: 5, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Associate Dean',    date: '03/25/2025', status: 'Received' },
+  { id: 6, name: 'Budget Proposal', type: 'Financial Document', department: 'Accounting Office', date: '03/26/2025', status: 'Received' }, // Added a 6th to test pagination
 ]
-
 
 const stats = [
   { label: 'Released',         value: 20, bg: 'bg-teal-50',   iconColor: 'text-teal-400',   border: 'border-teal-100',   Icon: Send },
@@ -34,11 +34,26 @@ export default function SuperAdminDashboardPage() {
   const [notifications, setNotifications] = useState(initialNotifications)
   const notificationRef = useRef<HTMLDivElement>(null)
 
+  // ── Pagination States & Math ──
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5 // Number of documents per page
+
   const filtered = mockDocuments.filter(d =>
     search === '' ||
     d.name.toLowerCase().includes(search.toLowerCase()) ||
     d.department.toLowerCase().includes(search.toLowerCase())
   )
+
+  // Reset to page 1 if the user types in the search bar
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search])
+
+  // Calculate pages and slice data
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage))
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedDocs = filtered.slice(startIndex, endIndex)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -133,7 +148,7 @@ export default function SuperAdminDashboardPage() {
         </div>
 
         {/* Recently Added Documents */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">
               Recently Received Documents
@@ -155,26 +170,73 @@ export default function SuperAdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-6 py-3.5 text-gray-700 font-medium">{doc.name}</td>
-                    <td className="px-6 py-3.5 text-gray-500">{doc.type}</td>
-                    <td className="px-6 py-3.5 text-gray-500">{doc.department}</td>
-                    <td className="px-6 py-3.5 text-gray-500">{doc.date}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-100">
-                        {doc.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition">
-                        <ArrowRight size={16} />
-                      </button>
+                {paginatedDocs.length > 0 ? (
+                  paginatedDocs.map((doc) => (
+                    <tr key={doc.id} className="hover:bg-gray-50/50 transition-colors group">
+                      <td className="px-6 py-3.5 text-gray-700 font-medium">{doc.name}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{doc.type}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{doc.department}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{doc.date}</td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-100">
+                          {doc.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition cursor-pointer">
+                          <ArrowRight size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400 text-sm">
+                      No documents found.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
+          </div>
+
+          {/* ── Pagination Footer ── */}
+          <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100 gap-4 bg-gray-50/30">
+            <p className="text-xs font-medium text-gray-500">
+              Showing <span className="font-medium text-gray-800">{filtered.length === 0 ? 0 : startIndex + 1}</span> to <span className="font-medium text-gray-800">{Math.min(endIndex, filtered.length)}</span> of <span className="font-medium text-gray-800">{filtered.length}</span> documents
+            </p>
+            
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <ChevronLeft size={16} className="text-gray-600" />
+              </button>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-8 h-8 rounded-lg text-xs font-bold transition cursor-pointer
+                    ${currentPage === page
+                      ? 'bg-[#1a2e4a] text-white shadow-md'
+                      : 'border border-gray-200 text-gray-600 hover:bg-gray-100'
+                    }`}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <ChevronRight size={16} className="text-gray-600" />
+              </button>
+            </div>
           </div>
         </div>
 

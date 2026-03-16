@@ -1,11 +1,88 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Breadcrumb } from "@/components/ui/breadcrumb"
-import { ChevronRight, Home } from "lucide-react"
+import { ChevronRight, Home, ChevronDown } from "lucide-react"
 import Link from "next/link"
+
+// ── Custom Select Component ───────────────────────────────────────────────
+function CustomSelect({ 
+  options, value, onChange, placeholder, minWidth = "w-full", error = false, disabled = false 
+}: {
+  options: string[] | { label: string; value: string }[]
+  value: string
+  onChange: (val: string) => void
+  placeholder: string
+  minWidth?: string
+  error?: boolean
+  disabled?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Normalize options to always be objects with label and value
+  const normalizedOptions = options.map(opt =>
+    typeof opt === 'string' ? { label: opt, value: opt } : opt
+  )
+
+  const selectedLabel = normalizedOptions.find(opt => opt.value === value)?.label || ''
+
+  return (
+    <div className={`relative ${minWidth}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full flex items-center justify-between gap-2 px-4 py-2 border rounded-lg text-sm transition-colors text-left
+          ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white cursor-pointer hover:bg-gray-50'}
+          ${error && !disabled ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-gray-300 focus:ring-blue-500'}
+          focus:outline-none focus:ring-2`}
+      >
+        <span className={`truncate ${!selectedLabel ? 'text-gray-500' : 'text-gray-800'}`}>
+          {selectedLabel || placeholder}
+        </span>
+        <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''} ${disabled ? 'text-gray-400' : 'text-gray-500'}`} />
+      </button>
+      
+      {isOpen && !disabled && (
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+          {normalizedOptions.length > 0 ? (
+            normalizedOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChange(option.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition hover:bg-blue-50 cursor-pointer ${
+                  value === option.value ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))
+          ) : (
+            <div className="px-4 py-3 text-sm text-gray-400 text-center">No options available</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Dummy Data for Departments & Users ─────────────────────────────────────
 const DUMMY_DEPARTMENTS = [
@@ -100,16 +177,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
     documentDescription:""
   })
 
-  // Helper to dynamically apply red border if a field is invalid
-  const getInputClass = (fieldName: string) => {
-    const baseClass = "w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors cursor-pointer"
-    if (invalidFields.includes(fieldName)) {
-      return `${baseClass} border-red-500 focus:ring-red-200 bg-red-50/30`
-    }
-    return `${baseClass} border-gray-300 focus:ring-blue-500`
-  }
-
-  // Clear specific field error when user starts typing
+  // Clear specific field error when user starts typing/selecting
   const clearFieldError = (fieldName: string) => {
     if (invalidFields.includes(fieldName)) {
       setInvalidFields(prev => prev.filter(f => f !== fieldName))
@@ -194,6 +262,18 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
     handleClear()
   }
 
+  // Map options for CustomSelect components
+  const documentTypeOptions = [
+    'Financial Document', 'Legal Document', 'HR Document', 'Supply Document', 'Academic Document'
+  ]
+
+  const departmentOptions = [
+    ...departments.map(dept => ({ label: dept.name, value: dept.id })),
+    { label: "Others (Specify)", value: "others" }
+  ]
+
+  const userOptions = availableUsers.map(user => ({ label: user.name, value: user.id }))
+
   return (
     <div className="overflow-y-auto flex-1 p-8">
 
@@ -245,18 +325,12 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
 
       {/* ── Breadcrumbs ── */}
       <nav className="flex items-center space-x-1 text-sm text-gray-600 mb-6">
-        <Link
-          href="/super-admin/dashboard"
-          className="flex items-center hover:text-gray-900 transition-colors"
-        >
+        <Link href="/super-admin/dashboard" className="flex items-center hover:text-gray-900 transition-colors">
           <Home className="h-4 w-4" />
         </Link>
         <div className="flex items-center">
           <ChevronRight className="h-4 w-4 mx-1 text-gray-400" />
-          <button
-            onClick={onBack}
-            className="hover:text-gray-900 transition-colors cursor-pointer"
-          >
+          <button onClick={onBack} className="hover:text-gray-900 transition-colors cursor-pointer">
             Add New
           </button>
         </div>
@@ -269,6 +343,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
       {/* ── Form UI ── */}
       <div className="mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">
 
+        {/* Document Name */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Document Name <span className="text-red-500">*</span>
@@ -281,67 +356,57 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
               setFormData({ ...formData, documentName: e.target.value })
               clearFieldError("documentName")
             }}
-            className={getInputClass("documentName")}
+            className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors
+              ${invalidFields.includes("documentName") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-gray-300 focus:ring-blue-500'}`}
           />
         </div>
 
+        {/* Document Type (Custom Select) */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Document Type <span className="text-red-500">*</span>
           </label>
-          <select
+          <CustomSelect
+            options={documentTypeOptions}
             value={formData.documentType}
-            onChange={(e) => {
-              setFormData({ ...formData, documentType: e.target.value })
+            onChange={(val) => {
+              setFormData({ ...formData, documentType: val })
               clearFieldError("documentType")
             }}
-            className={getInputClass("documentType")}
-          >
-            <option value="">Select the type of the document...</option> 
-            <option value="Financial Document">Financial Document</option>
-            <option value="Legal Document">Legal Document</option>
-            <option value="HR Document">HR Document</option>
-            <option value="Supply Document">Supply Document</option>
-            <option value="Academic Document">Academic Document</option>
-          </select>
+            placeholder="Select the type of the document..."
+            error={invalidFields.includes("documentType")}
+          />
         </div>
 
-        {/* ── Submitting Department (With "Others" Logic) ── */}
+        {/* Submitting Department (Custom Select & Others Input) */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Submitting Department <span className="text-red-500">*</span>
           </label>
           <div className="flex flex-col gap-2">
-            <select
+            <CustomSelect
+              options={departmentOptions}
               value={formData.submittingDepartment}
-              onChange={(e) => {
-                const selectedDeptId = e.target.value
+              onChange={(val) => {
                 setFormData(prev => ({ 
                   ...prev, 
-                  submittingDepartment: selectedDeptId,
+                  submittingDepartment: val,
                   customDepartment: "", 
                   submittedById: "",    
                   customSubmittedBy: "" 
                 }))
                 clearFieldError("submittingDepartment")
 
-                if (selectedDeptId && selectedDeptId !== "others") {
-                  const filteredUsers = DUMMY_USERS.filter(u => u.deptId === selectedDeptId)
+                if (val && val !== "others") {
+                  const filteredUsers = DUMMY_USERS.filter(u => u.deptId === val)
                   setAvailableUsers(filteredUsers)
                 } else {
                   setAvailableUsers([])
                 }
               }}
-              className={getInputClass("submittingDepartment")}
-            >
-              <option value="">Select submitting department...</option>
-              {departments.map((dept) => (
-                <option key={dept.id} value={dept.id}>
-                  {dept.name}
-                </option>
-              ))}
-              <option value="others" className="font-semibold text-blue-600">Others (Specify)</option>
-            </select>
+              placeholder="Select submitting department..."
+              error={invalidFields.includes("submittingDepartment")}
+            />
 
             {formData.submittingDepartment === "others" && (
               <input
@@ -352,12 +417,14 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
                   setFormData({ ...formData, customDepartment: e.target.value })
                   clearFieldError("customDepartment")
                 }}
-                className={`${getInputClass("customDepartment")} bg-blue-50/50 animate-in fade-in zoom-in-95`}
+                className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 animate-in fade-in zoom-in-95 transition-colors
+                  ${invalidFields.includes("customDepartment") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-blue-300 bg-blue-50/50 focus:ring-blue-500'}`}
               />
             )}
           </div>
         </div>
 
+        {/* Submitted By (Custom Select & Others Input) */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Submitted By <span className="text-red-500">*</span>
@@ -372,28 +439,25 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
                 setFormData({ ...formData, customSubmittedBy: e.target.value })
                 clearFieldError("customSubmittedBy")
               }}
-              className={`${getInputClass("customSubmittedBy")} bg-blue-50/50 animate-in fade-in`}
+              className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 animate-in fade-in transition-colors
+                ${invalidFields.includes("customSubmittedBy") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-blue-300 bg-blue-50/50 focus:ring-blue-500'}`}
             />
           ) : (
-            <select
+            <CustomSelect
+              options={userOptions}
               value={formData.submittedById}
-              onChange={(e) => {
-                setFormData({ ...formData, submittedById: e.target.value })
+              onChange={(val) => {
+                setFormData({ ...formData, submittedById: val })
                 clearFieldError("submittedById")
               }}
+              placeholder={formData.submittingDepartment ? "Select a user..." : "Please select a department first"}
               disabled={!formData.submittingDepartment}
-              className={`${getInputClass("submittedById")} disabled:bg-gray-100 disabled:border-gray-200 disabled:cursor-not-allowed`}
-            >
-              <option value="">
-                {formData.submittingDepartment ? "Select a user..." : "Please select a department first"}
-              </option>
-              {availableUsers.map(user => (
-                <option key={user.id} value={user.id}>{user.name}</option>
-              ))}
-            </select>
+              error={invalidFields.includes("submittedById")}
+            />
           )}
         </div>
 
+        {/* Description */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Description <span className="text-red-500">*</span>
@@ -406,10 +470,12 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
               setFormData({ ...formData, documentDescription: e.target.value })
               clearFieldError("documentDescription")
             }}
-            className={getInputClass("documentDescription")}
+            className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors
+              ${invalidFields.includes("documentDescription") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-gray-300 focus:ring-blue-500'}`}
           />
         </div>
 
+        {/* File Drag & Drop */}
         <div className="mb-8">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Attach File (optional)
@@ -425,10 +491,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
             }}
             onClick={() => document.getElementById("fileInput")?.click()}
             className={`border-2 border-dashed rounded-lg px-4 py-8 text-center cursor-pointer transition
-            ${isDragging
-              ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 hover:border-gray-400 bg-white"
-            }`}
+            ${isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400 bg-white"}`}
           >
             {file ? (
               <div className="flex items-center justify-center gap-2 text-sm text-gray-700">
@@ -461,10 +524,9 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
           />
         </div>
 
-        {/* ── Action Buttons with Inline Validation Error ── */}
+        {/* Action Buttons */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-100">
           <div>
-            {/* The error message appears here on the left side */}
             {validationError && (
               <p className="text-red-500 text-sm font-medium animate-in fade-in slide-in-from-left-2">
                 {validationError}

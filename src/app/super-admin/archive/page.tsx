@@ -198,10 +198,7 @@ export default function DigitalArchivePage() {
               className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 w-56"
             />
           </div>
-          <button className="relative p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition">
-            <Bell size={18} className="text-gray-600" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full" />
-          </button>
+
         </div>
       </header>
 

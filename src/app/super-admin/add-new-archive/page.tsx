@@ -1,9 +1,86 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { ChevronRight, Home } from "lucide-react"
+import { ChevronRight, Home, ChevronDown } from "lucide-react"
 import Link from "next/link"
+
+// ── Custom Select Component ───────────────────────────────────────────────
+function CustomSelect({ 
+  options, value, onChange, placeholder, minWidth = "w-full", error = false, disabled = false 
+}: {
+  options: string[] | { label: string; value: string }[]
+  value: string
+  onChange: (val: string) => void
+  placeholder: string
+  minWidth?: string
+  error?: boolean
+  disabled?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Normalize options to always be objects with label and value
+  const normalizedOptions = options.map(opt =>
+    typeof opt === 'string' ? { label: opt, value: opt } : opt
+  )
+
+  const selectedLabel = normalizedOptions.find(opt => opt.value === value)?.label || ''
+
+  return (
+    <div className={`relative ${minWidth}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full flex items-center justify-between gap-2 px-4 py-2 border rounded-lg text-sm transition-colors text-left
+          ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white cursor-pointer hover:bg-gray-50'}
+          ${error && !disabled ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-gray-300 focus:ring-blue-500'}
+          focus:outline-none focus:ring-2`}
+      >
+        <span className={`truncate ${!selectedLabel ? 'text-gray-500' : 'text-gray-800'}`}>
+          {selectedLabel || placeholder}
+        </span>
+        <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''} ${disabled ? 'text-gray-400' : 'text-gray-500'}`} />
+      </button>
+      
+      {isOpen && !disabled && (
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+          {normalizedOptions.length > 0 ? (
+            normalizedOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChange(option.value)
+                  setIsOpen(false)
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm transition hover:bg-blue-50 cursor-pointer ${
+                  value === option.value ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))
+          ) : (
+            <div className="px-4 py-3 text-sm text-gray-400 text-center">No options available</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function AddNewArchivePage() {
   return <ArchiveDocumentForm />
@@ -15,7 +92,7 @@ function ArchiveDocumentForm() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState("")
   
-  // New state for form validation
+  // Validation States
   const [validationError, setValidationError] = useState("") 
   const [invalidFields, setInvalidFields] = useState<string[]>([])
 
@@ -30,7 +107,12 @@ function ArchiveDocumentForm() {
     documentDescription: ""
   })
 
-  // Helper to dynamically apply red border if a field is invalid
+  // Options for the custom dropdown
+  const documentTypeOptions = [
+    'Financial Document', 'Legal Document', 'HR Document', 'Supply Document', 'Academic Document'
+  ]
+
+  // Helper to dynamically apply red border to standard inputs
   const getInputClass = (fieldName: string) => {
     const baseClass = "w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors cursor-pointer"
     if (invalidFields.includes(fieldName)) {
@@ -39,7 +121,7 @@ function ArchiveDocumentForm() {
     return `${baseClass} border-gray-300 focus:ring-blue-500`
   }
 
-  // Clear specific field error when user starts typing
+  // Clear specific field error when user starts typing/selecting
   const clearFieldError = (fieldName: string) => {
     if (invalidFields.includes(fieldName)) {
       setInvalidFields(prev => prev.filter(f => f !== fieldName))
@@ -185,6 +267,7 @@ function ArchiveDocumentForm() {
 
       <div className="mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">
 
+        {/* ── Document Name ── */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Document Name <span className="text-red-500">*</span>
@@ -201,27 +284,24 @@ function ArchiveDocumentForm() {
           />
         </div>
 
+        {/* ── Document Type (Custom Select) ── */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Document Type <span className="text-red-500">*</span>
           </label>
-          <select
+          <CustomSelect
+            options={documentTypeOptions}
             value={formData.documentType}
-            onChange={(e) => {
-              setFormData({ ...formData, documentType: e.target.value })
+            onChange={(val) => {
+              setFormData({ ...formData, documentType: val })
               clearFieldError("documentType")
             }}
-            className={getInputClass("documentType")}
-          >
-            <option value="">Select the type of the document...</option> 
-            <option value="Financial Document">Financial Document</option>
-            <option value="Legal Document">Legal Document</option>
-            <option value="HR Document">HR Document</option>
-            <option value="Supply Document">Supply Document</option>
-            <option value="Academic Document">Academic Document</option>
-          </select>
+            placeholder="Select the type of the document..."
+            error={invalidFields.includes("documentType")}
+          />
         </div>
 
+        {/* ── Description ── */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Description <span className="text-red-500">*</span>
