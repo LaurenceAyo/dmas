@@ -8,7 +8,7 @@ import {
 
 const navItems = [
   { label: 'Dashboard',    href: '/client/dashboard',    icon: Home     },
-  { label: 'My Documents', href: '/client/my-documents', icon: FileText },
+  { label: 'My Documents', href: '/client/documents', icon: FileText },
   { label: 'Inbox',        href: '/client/inbox',        icon: Inbox    },
   { label: 'Profile',      href: '/client/profile',      icon: User     },
 ]
