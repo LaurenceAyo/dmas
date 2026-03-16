@@ -19,7 +19,7 @@ const mockDocuments = [
   { id: 5, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Associate Dean',    date: '03/25/2025', status: 'Received' },
 ]
 
-// Added unique 'Icon' properties to each stat
+
 const stats = [
   { label: 'Released',         value: 20, bg: 'bg-teal-50',   iconColor: 'text-teal-400',   border: 'border-teal-100',   Icon: Send },
   { label: 'Approved',         value: 20, bg: 'bg-green-50',  iconColor: 'text-green-500',  border: 'border-green-100',  Icon: FileCheck },
@@ -122,7 +122,6 @@ export default function SuperAdminDashboardPage() {
               className={`flex-1 bg-white rounded-2xl border ${s.border} shadow-sm px-4 py-4 flex items-center gap-3`}
             >
               <div className={`w-10 h-10 rounded-full ${s.bg} flex items-center justify-center shrink-0`}>
-                {/* Dynamically render the unique icon here */}
                 <s.Icon size={18} className={s.iconColor} />
               </div>
               <div>
