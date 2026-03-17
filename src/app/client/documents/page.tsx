@@ -1,7 +1,65 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Search, Bell, FileText, Calendar, Building2, Tag, X, Download, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Bell, FileText, Calendar, Building2, Tag, X, Download, Eye, ChevronLeft, ChevronRight, ChevronDown, Filter } from 'lucide-react'
+
+// Custom dropdown component – identical to DocumentProgress
+function CustomSelect({ options, value, onChange, placeholder, minWidth }: {
+  options: string[] | { label: string; value: string }[]
+  value: string
+  onChange: (val: string) => void
+  placeholder: string
+  minWidth: string
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const normalizedOptions = options.map(opt =>
+    typeof opt === 'string' ? { label: opt, value: opt } : opt
+  )
+  const selectedLabel = normalizedOptions.find(opt => opt.value === value)?.label || ''
+
+  return (
+    <div className={`relative ${minWidth}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-200"
+      >
+        <span className="truncate">{selectedLabel || placeholder}</span>
+        <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-30 max-h-60 overflow-y-auto">
+          {normalizedOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                onChange(option.value)
+                setIsOpen(false)
+              }}
+              className={`w-full text-left px-4 py-2.5 text-sm transition hover:bg-blue-50 cursor-pointer ${
+                value === option.value ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Mock Data for the Logged-in User ───────────────────────────────────────
 const myDocuments = [
@@ -128,9 +186,9 @@ export default function MyDocumentsPage() {
 
   // ── Pagination States ──
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 5 // Adjust this to show more or less rows
+  const itemsPerPage = 5
 
-  // ── 1. Filter Logic ──
+  // ── Filter Logic ──
   let filteredDocs = myDocuments.filter(d => {
     const matchSearch = search === '' || 
       d.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -142,23 +200,26 @@ export default function MyDocumentsPage() {
     return matchSearch && matchType && matchStatus
   })
 
-  // ── 2. Date Sorting Logic ──
+  // ── Date Sorting Logic ──
   if (filterDate === 'Newest') {
     filteredDocs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   } else if (filterDate === 'Oldest') {
     filteredDocs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   }
 
-  // ── 3. Reset Pagination on Filter Change ──
+  // ── Reset Pagination on Filter Change ──
   useEffect(() => {
     setCurrentPage(1)
   }, [search, filterType, filterStatus, filterDate])
 
-  // ── 4. Pagination Math ──
+  // ── Pagination Math ──
   const totalPages = Math.max(1, Math.ceil(filteredDocs.length / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
   const paginatedDocs = filteredDocs.slice(startIndex, endIndex)
+
+  // Check if any filter is active
+  const isFilterActive = filterType !== 'All' || filterStatus !== 'All' || filterDate !== 'All' || search !== ''
 
   // Reset Filters Function
   const handleClearFilters = () => {
@@ -235,57 +296,74 @@ export default function MyDocumentsPage() {
         </div>
       </header>
 
-      {/* ── Filter Toolbar ── */}
-      <div className="flex items-center gap-4 mb-6">
-        <p className="text-sm font-bold text-gray-700">Filter:</p>
-        
-        <button 
-          onClick={handleClearFilters}
-          className="bg-[#1a2e4a] text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-[#243d5c] transition shadow-sm cursor-pointer"
-        >
-          All
-        </button>
+      {/* ── Filter Toolbar (modernized) ── */}
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex items-center gap-1 text-gray-600">
+          <Filter className="w-4 h-10" />
+          <span className="text-sm font-medium">Filter:</span>
+        </div>
 
-        <select 
+        <CustomSelect
+          options={[
+            { label: 'Document Type', value: 'All' },
+            { label: 'Financial Document', value: 'Financial Document' },
+            { label: 'Administrative', value: 'Administrative' },
+            { label: 'HR Document', value: 'HR Document' },
+            { label: 'Academic Document', value: 'Academic Document' },
+          ]}
           value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="border border-gray-200 text-gray-600 text-sm rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 shadow-sm cursor-pointer"
-        >
-          <option value="All">Document Type</option>
-          <option value="Financial Document">Financial Document</option>
-          <option value="Administrative">Administrative</option>
-          <option value="HR Document">HR Document</option>
-          <option value="Academic Document">Academic Document</option>
-        </select>
+          onChange={(val) => {
+            setFilterType(val)
+            setCurrentPage(1)
+          }}
+          placeholder="Document Type"
+          minWidth="min-w-[150px]"
+        />
 
-        <select 
+        <CustomSelect
+          options={[
+            { label: 'Status', value: 'All' },
+            { label: 'Received', value: 'Received' },
+            { label: 'Pending Review', value: 'Pending Review' },
+            { label: 'Approved', value: 'Approved' },
+            { label: 'Denied', value: 'Denied' },
+          ]}
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="border border-gray-200 text-gray-600 text-sm rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 shadow-sm cursor-pointer"
-        >
-          <option value="All">Status</option>
-          <option value="Received">Received</option>
-          <option value="Pending Review">Pending Review</option>
-          <option value="Approved">Approved</option>
-          <option value="Denied">Denied</option>
-        </select>
+          onChange={(val) => {
+            setFilterStatus(val)
+            setCurrentPage(1)
+          }}
+          placeholder="Status"
+          minWidth="min-w-[120px]"
+        />
 
-        <select 
+        <CustomSelect
+          options={[
+            { label: 'Date', value: 'All' },
+            { label: 'Newest First', value: 'Newest' },
+            { label: 'Oldest First', value: 'Oldest' },
+          ]}
           value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-          className="border border-gray-200 text-gray-600 text-sm rounded-lg px-4 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 shadow-sm cursor-pointer"
-        >
-          <option value="All">Date</option>
-          <option value="Newest">Newest First</option>
-          <option value="Oldest">Oldest First</option>
-        </select>
+          onChange={(val) => {
+            setFilterDate(val)
+            setCurrentPage(1)
+          }}
+          placeholder="Date"
+          minWidth="min-w-[100px]"
+        />
+
+        {isFilterActive && (
+          <button onClick={handleClearFilters} className="text-xs text-blue-600 hover:underline ml-1 cursor-pointer">
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Main Table Container */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex-1 flex flex-col">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col overflow-hidden">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-500 text-xs uppercase tracking-widest font-bold sticky top-0 z-10">
+            <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-center px-6 py-4 font-semibold">Document Name</th>
                 <th className="text-center px-6 py-4 font-semibold">Type</th>
