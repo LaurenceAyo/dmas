@@ -103,8 +103,8 @@ const statusOptions = [
   { label: 'Pending Review', value: 'Pending Review' },
 ]
 
-// Options for Action Taken dropdown – now only the two relevant statuses
-const actionOptions = ['Received', 'Pending Review']
+// Options for Action Taken dropdown – now includes all five options
+const actionOptions = ['Received', 'Approved', 'Pending Review', 'Released', 'Denied']
 
 // Shorter list for Corresponding Office dropdown
 const correspondingOfficeOptions = ['BAC', 'Associate Dean', 'Accounting', 'HR', 'Board']
@@ -247,6 +247,10 @@ export default function ActionQueuePage() {
               className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 w-56 transition-all"
             />
           </div>
+          <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-all cursor-pointer">
+            <Bell size={20} />
+            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full" />
+          </button>
         </div>
       </header>
 
@@ -330,7 +334,7 @@ export default function ActionQueuePage() {
                     <td className="px-6 py-3.5 text-gray-500">{doc.department}</td>
                     <td className="px-6 py-3.5 text-gray-500">{doc.dateReceived}</td>
                     <td className="px-6 py-3.5">
-                      <span className={`inline-flex items-center justify-center w-24 px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusBadgeColor(doc.status)}`}>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusBadgeColor(doc.status)}`}>
                         {doc.status}
                       </span>
                     </td>
@@ -426,7 +430,7 @@ export default function ActionQueuePage() {
                     <div><span className="text-xs font-medium text-gray-600">Last Update:</span> <span className="text-xs text-gray-800">{selectedDoc.lastUpdate}</span></div>
                   </div>
 
-                  {/* Action Taken dropdown – pre‑selected with document status */}
+                  {/* Action Taken dropdown – now with full options, pre‑selected with document status */}
                   <div>
                     <p className="text-xs font-medium text-gray-700 mb-1">Action Taken</p>
                     <CustomSelect
@@ -439,7 +443,7 @@ export default function ActionQueuePage() {
                     />
                   </div>
 
-                  {/* Corresponding Office dropdown – now preselected to first option (e.g., "BAC") */}
+                  {/* Corresponding Office dropdown – preselected to first option */}
                   <div>
                     <p className="text-xs font-medium text-gray-700 mb-1">Corresponding Office</p>
                     <CustomSelect
@@ -468,8 +472,8 @@ export default function ActionQueuePage() {
               </div>
               {submitError && <p className="text-xs text-red-500 mb-2">{submitError}</p>}
               <div className="flex justify-end gap-2">
-                <button onClick={handleClear} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition">Clear</button>
-                <button onClick={handleSubmitClick} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition">Submit</button>
+                <button onClick={handleClear} className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer ">Clear</button>
+                <button onClick={handleSubmitClick} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition cursor-pointer ">Submit</button>
               </div>
             </div>
           </div>
@@ -481,8 +485,8 @@ export default function ActionQueuePage() {
                 <h3 className="text-base font-semibold text-gray-800 mb-2">Confirm Submission</h3>
                 <p className="text-sm text-gray-600 mb-4">Are you sure you want to submit these remarks and actions?</p>
                 <div className="flex justify-end gap-2">
-                  <button onClick={handleCancelConfirm} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-                  <button onClick={handleConfirmSubmit} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition">Confirm</button>
+                  <button onClick={handleCancelConfirm} className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer ">Cancel</button>
+                  <button onClick={handleConfirmSubmit} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition cursor-pointer ">Confirm</button>
                 </div>
               </div>
             </div>
@@ -493,7 +497,7 @@ export default function ActionQueuePage() {
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] px-4" onClick={handleSuccessOk}>
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center" onClick={(e) => e.stopPropagation()}>
                 <p className="text-sm text-gray-800 mb-4">Document has been submitted successfully.</p>
-                <button onClick={handleSuccessOk} className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition">OK</button>
+                <button onClick={handleSuccessOk} className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition cursor-pointer">OK</button>
               </div>
             </div>
           )}

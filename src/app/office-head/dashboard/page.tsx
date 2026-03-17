@@ -247,7 +247,7 @@ export default function OfficeHeadDashboardPage() {
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusColor(doc.status)}`}>
                           {doc.status}
-                        </span>
+                        </span> 
                       </td>
                     </tr>
                   ))
