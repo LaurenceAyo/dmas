@@ -41,7 +41,7 @@ const stats = [
 ]
 
 // ── Helper Function: Status Colors ─────────────────────────────────────────
-const getStatusColor = (status) => {
+const getStatusColor = (status:String) => {
   switch (status) {
     case 'Approved':
       return 'bg-green-50 text-green-600 border-green-200'

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   }
 
   //Remove me once done
-  if (request.nextUrl.pathname.startsWith('/client/inbox')) {
+  if (request.nextUrl.pathname.startsWith('/super-admin/activity-log')) {
   return NextResponse.next()
 }
   

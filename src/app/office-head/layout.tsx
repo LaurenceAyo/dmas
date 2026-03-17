@@ -31,7 +31,7 @@ export default function OfficeHeadLayout({ children }: { children: React.ReactNo
         <div className="flex flex-col items-center mb-2 px-2">
           <div className="w-full py-4 flex flex-col items-center">
             <img 
-              src="/bucenglogo.png" 
+              src="bucenglogo.png" 
               alt="BUCENG Logo" 
               className="w-20 h-20 object-contain mb-2" 
             />
