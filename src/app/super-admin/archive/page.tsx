@@ -64,6 +64,20 @@ function CustomSelect({ options, value, onChange, placeholder, minWidth }: {
   )
 }
 
+// Helper to get month name from date string "MM/DD/YYYY"
+const getMonthFromDate = (dateStr: string) => {
+  const [month] = dateStr.split('/')
+  const monthIndex = parseInt(month, 10) - 1
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  return monthNames[monthIndex] || ''
+}
+
+// Helper to get year from date string
+const getYearFromDate = (dateStr: string) => {
+  const [, , year] = dateStr.split('/')
+  return year || ''
+}
+
 // Mock archived documents
 const archivedDocs = [
   { 
@@ -92,7 +106,7 @@ for (let i = 6; i <= 20; i++) {
 }
 
 // Filter options
-const yearOptions = ['2025', '2024', '2023', '2022', '2021', '2020']
+const yearOptions = ['2026','2025', '2024', '2023', '2022', '2021', '2020']
 const monthOptions = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const categoryOptions = ['Financial Document', 'Historical Document', 'Requisition', 'Form', 'Minutes', 'Legal', 'Order', 'Report', 'Certificate', 'Memo']
 
@@ -125,9 +139,26 @@ export default function DigitalArchivePage() {
   const [otherReason, setOtherReason] = useState('')
   const [deleteError, setDeleteError] = useState('')
 
-  // For now, no actual filtering – use all docs
-  const filteredDocs = archivedDocs
+  // Filtering logic – runs automatically when any filter changes
+  const filteredDocs = archivedDocs.filter(doc => {
+    // Search filter
+    const matchesSearch = searchQuery === '' || 
+      doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      doc.department.toLowerCase().includes(searchQuery.toLowerCase())
 
+    // Year filter
+    const matchesYear = !selectedYear || getYearFromDate(doc.dateArchived) === selectedYear
+
+    // Month filter
+    const matchesMonth = !selectedMonth || getMonthFromDate(doc.dateArchived) === selectedMonth
+
+    // Category filter
+    const matchesCategory = !selectedCategory || doc.type === selectedCategory
+
+    return matchesSearch && matchesYear && matchesMonth && matchesCategory
+  })
+
+  // Pagination calculations
   const totalPages = Math.ceil(filteredDocs.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedDocs = filteredDocs.slice(startIndex, startIndex + itemsPerPage)
@@ -136,25 +167,25 @@ export default function DigitalArchivePage() {
     setCurrentPage(Math.max(1, Math.min(totalPages, page)))
   }
 
-  const applyFilters = () => {
+  // Reset to page 1 when filters change
+  useEffect(() => {
     setCurrentPage(1)
-    // Actual filtering logic goes here
-  }
+  }, [selectedYear, selectedMonth, selectedCategory, searchQuery])
 
   // Clear all filters
   const clearFilters = () => {
     setSelectedYear('')
     setSelectedMonth('')
     setSelectedCategory('')
+    setSearchQuery('')
     setCurrentPage(1)
   }
 
-  // Check if any filter is active (excluding search)
-  const isFilterActive = selectedYear || selectedMonth || selectedCategory
+  // Check if any filter is active (excluding search? Actually include search)
+  const isFilterActive = selectedYear || selectedMonth || selectedCategory || searchQuery
 
   // Handle delete confirmation
   const handleDeleteConfirm = () => {
-    // Validate reason
     if (!deleteReason) {
       setDeleteError('Please select a reason for deletion.')
       return
@@ -164,12 +195,8 @@ export default function DigitalArchivePage() {
       return
     }
 
-    // Here you would call your actual delete function with the reason
-    // console.log('Deleting', deleteDoc?.name, 'Reason:', deleteReason === 'Others' ? otherReason : deleteReason)
-
     setDeleteDoc(null)
     setShowDeletedModal(true)
-    // Reset reason states
     setDeleteReason('')
     setOtherReason('')
     setDeleteError('')
@@ -198,7 +225,6 @@ export default function DigitalArchivePage() {
               className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 w-56"
             />
           </div>
-
         </div>
       </header>
 
@@ -207,7 +233,7 @@ export default function DigitalArchivePage() {
         {/* Total Archived */}
         <div className="mb-4">
           <span className="text-xs text-gray-400 font-medium">Total Archived:</span>{' '}
-          <span className="text-sm text-gray-700">{archivedDocs.length}</span>
+          <span className="text-sm text-gray-700">{filteredDocs.length}</span>
         </div>
 
         {/* Filter row */}
@@ -240,13 +266,6 @@ export default function DigitalArchivePage() {
             placeholder="Category"
             minWidth="min-w-[190px]"
           />
-
-          <button
-            onClick={applyFilters}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition cursor-pointer"
-          >
-            Apply Filters
-          </button>
 
           {isFilterActive && (
             <button
@@ -352,18 +371,18 @@ export default function DigitalArchivePage() {
         )}
       </div>
 
-      {/* Preview Modal */}
+      {/* Preview Modal – compact (no scroll) */}
       {previewDoc && (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
           onClick={() => setPreviewDoc(null)}
         >
           <div
-            className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[100vh] "
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex items-start justify-between px-9 py-5 border-b border-gray-100">
               <div>
                 <h2 className="text-xl font-semibold text-gray-800">{previewDoc.name}</h2>
                 <p className="text-sm text-gray-500 mt-1">{previewDoc.type}</p>
@@ -378,7 +397,7 @@ export default function DigitalArchivePage() {
             </div>
 
             {/* Modal Body – two columns */}
-            <div className="px-10 py-4">
+            <div className="px-9 py-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Left column – description */}
                 <div>
@@ -398,7 +417,7 @@ export default function DigitalArchivePage() {
               </div>
 
               {/* Download & Print buttons – right aligned */}
-              <div className="flex justify-end gap-3 mt-6 pt-3 border-t border-gray-100">
+              <div className="flex justify-end gap-3 mt-3 pt-3 border-t border-gray-100">
                 <button
                   className="px-5 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition flex items-center gap-2 cursor-pointer"
                   onClick={() => alert('Download – replace with actual download logic')}
@@ -407,7 +426,7 @@ export default function DigitalArchivePage() {
                   Download
                 </button>
                 <button
-                  className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition flex items-center gap-2 cursor-pointer"
                   onClick={() => alert('Print – replace with actual print logic')}
                 >
                   <Printer size={16} />

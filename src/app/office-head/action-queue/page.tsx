@@ -319,7 +319,7 @@ export default function ActionQueuePage() {
                   <th className="text-left px-6 py-3 font-semibold">Document Type</th>
                   <th className="text-left px-6 py-3 font-semibold">Submitting Department</th>
                   <th className="text-left px-6 py-3 font-semibold">Date Received</th>
-                  <th className="text-left px-6 py-3 font-semibold">Status</th>
+                  <th className="text-left px-11 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -334,7 +334,7 @@ export default function ActionQueuePage() {
                     <td className="px-6 py-3.5 text-gray-500">{doc.department}</td>
                     <td className="px-6 py-3.5 text-gray-500">{doc.dateReceived}</td>
                     <td className="px-6 py-3.5">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusBadgeColor(doc.status)}`}>
+                      <span className={`inline-flex items-center justify-center w-24 px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusBadgeColor(doc.status)}`}>
                         {doc.status}
                       </span>
                     </td>
