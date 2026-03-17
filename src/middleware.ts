@@ -28,6 +28,11 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
+  //Remove me once done
+  if (request.nextUrl.pathname.startsWith('/client/inbox')) {
+  return NextResponse.next()
+}
+  
   // If not logged in, redirect to login
   if (!user && !pathname.startsWith('/login') && !pathname.startsWith('/register')) {
     return NextResponse.redirect(new URL('/login', request.url))
