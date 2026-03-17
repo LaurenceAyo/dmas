@@ -3,6 +3,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, Bell, FileText, Calendar, Building2, Tag, X, Download, Eye, ChevronLeft, ChevronRight, ChevronDown, Filter } from 'lucide-react'
 
+interface Document {
+  id: number
+  name: string
+  type: string
+  department: string
+  date: string
+  status: string
+  description: string
+}
+
 // Custom dropdown component – identical to DocumentProgress
 function CustomSelect({ options, value, onChange, placeholder, minWidth }: {
   options: string[] | { label: string; value: string }[]
@@ -72,7 +82,7 @@ const myDocuments = [
 ]
 
 // ── Helper Function: Status Colors ─────────────────────────────────────────
-const getStatusColor = (status) => {
+const getStatusColor = (status:string) => {
   switch (status) {
     case 'Approved':  return 'bg-green-100 text-green-700 border-green-200'
     case 'Denied':    return 'bg-red-100 text-red-700 border-red-200'
@@ -90,7 +100,7 @@ const initialNotifications = [
 ]
 
 // ── 1. The Revamped Modal Component ────────────────────────────────────────
-function DocumentDetailsModal({ document, onClose }) {
+function DocumentDetailsModal({ document, onClose }: { document: Document; onClose: () => void }) {
   if (!document) return null
 
   return (
@@ -174,7 +184,7 @@ function DocumentDetailsModal({ document, onClose }) {
 // ── 2. The Main Page Component ─────────────────────────────────────────────
 export default function MyDocumentsPage() {
   const [search, setSearch] = useState('')
-  const [selectedDocument, setSelectedDocument] = useState(null)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState(initialNotifications)
   const notificationRef = useRef<HTMLDivElement>(null)
