@@ -439,7 +439,7 @@ export default function ActionQueuePage() {
                       onChange={setActionTaken}
                       placeholder="Select action"
                       minWidth="w-full"
-                      error={submitError && !actionTaken}
+                      error={submitError && !actionTaken || undefined}
                     />
                   </div>
 
@@ -452,7 +452,7 @@ export default function ActionQueuePage() {
                       onChange={setCorrOffice}
                       placeholder="Select office"
                       minWidth="w-full"
-                      error={submitError && !corrOffice}
+                      error={submitError && !corrOffice || undefined}
                     />
                   </div>
                 </div>
