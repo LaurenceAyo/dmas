@@ -363,7 +363,7 @@ export default function MyDocumentsPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col overflow-hidden">
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-100 border-b border-gray-100 text-gray-500 text-xs uppercase tracking-widest font-bold sticky top-0 z-10">
+            <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-center px-6 py-4 font-semibold">Document Name</th>
                 <th className="text-center px-6 py-4 font-semibold">Type</th>
