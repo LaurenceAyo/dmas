@@ -170,6 +170,8 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
   const [formData, setFormData] = useState({
     documentName: "",
     documentType: "",
+    customDocumentType: "",                // for "others"
+    customDocumentDetail: "",               // required detail for specific types
     submittingDepartment: "",
     customDepartment: "", 
     submittedById: "",
@@ -187,7 +189,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
 
   const handleClear = () => {
     setFormData({ 
-      documentName: "", documentType: "", 
+      documentName: "", documentType: "", customDocumentType: "", customDocumentDetail: "",
       submittingDepartment: "", customDepartment: "",
       submittedById: "", customSubmittedBy: "", 
       documentDescription:"" 
@@ -195,17 +197,29 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
     setFile(null)
     setAvailableUsers([])
     setValidationError("") 
-    setInvalidFields([]) // Clear red borders
+    setInvalidFields([])
   }
 
   const handleSave = () => {
     const newInvalidFields: string[] = []
 
-    // Advanced validation: check which fields are empty
+    // Document Name
     if (!formData.documentName) newInvalidFields.push("documentName")
-    if (!formData.documentType) newInvalidFields.push("documentType")
+
+    // Document Type validation – both the type and its detail are required
+    if (!formData.documentType) {
+      newInvalidFields.push("documentType")
+    } else if (formData.documentType === "others") {
+      if (!formData.customDocumentType) newInvalidFields.push("customDocumentType")
+    } else {
+      // For named types, the detail is required
+      if (!formData.customDocumentDetail) newInvalidFields.push("customDocumentDetail")
+    }
+
+    // Description
     if (!formData.documentDescription) newInvalidFields.push("documentDescription")
 
+    // Department and Submitted By
     if (formData.submittingDepartment === "others") {
       if (!formData.customDepartment) newInvalidFields.push("customDepartment")
       if (!formData.customSubmittedBy) newInvalidFields.push("customSubmittedBy")
@@ -220,7 +234,6 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
       return
     }
     
-    // Clear the error if everything is filled out correctly
     setInvalidFields([])
     setValidationError("")
     setError("")
@@ -231,6 +244,15 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
     setShowConfirm(false)
     const supabase = createClient()
 
+    // Construct final document type
+    let finalDocumentType = formData.documentType
+    if (formData.documentType === "others") {
+      finalDocumentType = formData.customDocumentType
+    } else {
+      // Detail is required, so it will always be appended
+      finalDocumentType = `${formData.documentType}: ${formData.customDocumentDetail}`
+    }
+
     const finalDepartment = formData.submittingDepartment === "others" ? formData.customDepartment : formData.submittingDepartment
     const finalSubmittedBy = formData.submittingDepartment === "others" ? formData.customSubmittedBy : formData.submittedById
 
@@ -239,7 +261,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
       .insert([
         {
           title: formData.documentName,
-          type: formData.documentType,
+          type: finalDocumentType,
           department_id: finalDepartment, 
           submitted_by: finalSubmittedBy,
           description: formData.documentDescription,
@@ -262,9 +284,12 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
     handleClear()
   }
 
-  // Map options for CustomSelect components
+  // Document type options
   const documentTypeOptions = [
-    'Financial Document', 'Legal Document', 'HR Document', 'Supply Document', 'Academic Document'
+    { label: "Communication letters", value: "Communication letters" },
+    { label: "Proposal", value: "Proposal" },
+    { label: "Vouchers", value: "Vouchers" },
+    { label: "Others (Specify)", value: "others" }
   ]
 
   const departmentOptions = [
@@ -361,21 +386,58 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
           />
         </div>
 
-        {/* Document Type (Custom Select) */}
+        {/* Document Type with required detail input */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Document Type <span className="text-red-500">*</span>
           </label>
-          <CustomSelect
-            options={documentTypeOptions}
-            value={formData.documentType}
-            onChange={(val) => {
-              setFormData({ ...formData, documentType: val })
-              clearFieldError("documentType")
-            }}
-            placeholder="Select the type of the document..."
-            error={invalidFields.includes("documentType")}
-          />
+          <div className="flex flex-col gap-2">
+            <CustomSelect
+              options={documentTypeOptions}
+              value={formData.documentType}
+              onChange={(val) => {
+                setFormData(prev => ({ 
+                  ...prev, 
+                  documentType: val,
+                  customDocumentType: "",
+                  customDocumentDetail: ""
+                }))
+                clearFieldError("documentType")
+              }}
+              placeholder="Select the type of the document..."
+              error={invalidFields.includes("documentType")}
+            />
+
+            {/* Custom input for "others" – required */}
+            {formData.documentType === "others" && (
+              <input
+                type="text"
+                placeholder="Please specify the document type... *"
+                value={formData.customDocumentType}
+                onChange={(e) => {
+                  setFormData({ ...formData, customDocumentType: e.target.value })
+                  clearFieldError("customDocumentType")
+                }}
+                className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 animate-in fade-in zoom-in-95 transition-colors
+                  ${invalidFields.includes("customDocumentType") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-blue-300 bg-blue-50/50 focus:ring-blue-500'}`}
+              />
+            )}
+
+            {/* Required detail input for specific types */}
+            {formData.documentType && formData.documentType !== "others" && (
+              <input
+                type="text"
+                placeholder={`Enter detail for ${formData.documentType} *`}
+                value={formData.customDocumentDetail}
+                onChange={(e) => {
+                  setFormData({ ...formData, customDocumentDetail: e.target.value })
+                  clearFieldError("customDocumentDetail")
+                }}
+                className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 animate-in fade-in zoom-in-95 transition-colors
+                  ${invalidFields.includes("customDocumentDetail") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-blue-300 bg-blue-50/50 focus:ring-blue-500'}`}
+              />
+            )}
+          </div>
         </div>
 
         {/* Submitting Department (Custom Select & Others Input) */}
@@ -411,7 +473,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
             {formData.submittingDepartment === "others" && (
               <input
                 type="text"
-                placeholder="Please type the department name..."
+                placeholder="Please type the department name... *"
                 value={formData.customDepartment}
                 onChange={(e) => {
                   setFormData({ ...formData, customDepartment: e.target.value })
@@ -433,7 +495,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
           {formData.submittingDepartment === "others" ? (
             <input
               type="text"
-              placeholder="Enter the submitter's full name..."
+              placeholder="Enter the submitter's full name... *"
               value={formData.customSubmittedBy}
               onChange={(e) => {
                 setFormData({ ...formData, customSubmittedBy: e.target.value })

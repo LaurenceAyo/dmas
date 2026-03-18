@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { ChevronRight, Home, ChevronDown } from "lucide-react"
 import Link from "next/link"
 
-// ── Custom Select Component ───────────────────────────────────────────────
+// ── Custom Select Component (same as before) ──────────────────────────────
 function CustomSelect({ 
   options, value, onChange, placeholder, minWidth = "w-full", error = false, disabled = false 
 }: {
@@ -30,7 +30,6 @@ function CustomSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Normalize options to always be objects with label and value
   const normalizedOptions = options.map(opt =>
     typeof opt === 'string' ? { label: opt, value: opt } : opt
   )
@@ -100,16 +99,21 @@ function ArchiveDocumentForm() {
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   
-  // Form data without submitting department and submitted by
+  // Form data with custom fields for document type
   const [formData, setFormData] = useState({
     documentName: "",
     documentType: "",
+    customDocumentType: "",                // for "others"
+    customDocumentDetail: "",               // required detail for specific types
     documentDescription: ""
   })
 
-  // Options for the custom dropdown
+  // Document type options (same as in new document form)
   const documentTypeOptions = [
-    'Financial Document', 'Legal Document', 'HR Document', 'Supply Document', 'Academic Document'
+    { label: "Communication letters", value: "Communication letters" },
+    { label: "Proposal", value: "Proposal" },
+    { label: "Vouchers", value: "Vouchers" },
+    { label: "Others (Specify)", value: "others" }
   ]
 
   // Helper to dynamically apply red border to standard inputs
@@ -133,6 +137,8 @@ function ArchiveDocumentForm() {
     setFormData({ 
       documentName: "", 
       documentType: "", 
+      customDocumentType: "",
+      customDocumentDetail: "",
       documentDescription: "" 
     })
     setFile(null)
@@ -143,9 +149,19 @@ function ArchiveDocumentForm() {
   const handleSave = () => {
     const newInvalidFields: string[] = []
 
-    // Check which fields are empty
+    // Document Name
     if (!formData.documentName) newInvalidFields.push("documentName")
-    if (!formData.documentType) newInvalidFields.push("documentType")
+
+    // Document Type validation
+    if (!formData.documentType) {
+      newInvalidFields.push("documentType")
+    } else if (formData.documentType === "others") {
+      if (!formData.customDocumentType) newInvalidFields.push("customDocumentType")
+    } else {
+      if (!formData.customDocumentDetail) newInvalidFields.push("customDocumentDetail")
+    }
+
+    // Description
     if (!formData.documentDescription) newInvalidFields.push("documentDescription")
 
     if (newInvalidFields.length > 0) {
@@ -154,7 +170,6 @@ function ArchiveDocumentForm() {
       return
     }
 
-    // Clear errors if everything is valid
     setInvalidFields([])
     setValidationError("")
     setError("")
@@ -165,12 +180,20 @@ function ArchiveDocumentForm() {
     setShowConfirm(false)
     const supabase = createClient()
 
+    // Construct final document type
+    let finalDocumentType = formData.documentType
+    if (formData.documentType === "others") {
+      finalDocumentType = formData.customDocumentType
+    } else {
+      finalDocumentType = `${formData.documentType}: ${formData.customDocumentDetail}`
+    }
+
     const { error } = await supabase
       .from("documents")
       .insert([
         {
           title: formData.documentName,
-          type: formData.documentType,
+          type: finalDocumentType,
           description: formData.documentDescription,
           status: "archived",                            
           is_archived: true,                            
@@ -194,7 +217,7 @@ function ArchiveDocumentForm() {
   return (
     <div className="overflow-y-auto flex-1 p-8">
 
-      {/* ── Modals ── */}
+      {/* ── Modals (unchanged) ── */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-8 w-96 relative">
@@ -240,7 +263,7 @@ function ArchiveDocumentForm() {
         </div>
       )}
 
-      {/* ── Breadcrumbs ── */}
+      {/* ── Breadcrumbs (unchanged) ── */}
       <nav className="flex items-center space-x-1 text-sm text-gray-600 mb-6">
         <Link
           href="/super-admin/dashboard"
@@ -284,21 +307,58 @@ function ArchiveDocumentForm() {
           />
         </div>
 
-        {/* ── Document Type (Custom Select) ── */}
+        {/* ── Document Type with required detail ── */}
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Document Type <span className="text-red-500">*</span>
           </label>
-          <CustomSelect
-            options={documentTypeOptions}
-            value={formData.documentType}
-            onChange={(val) => {
-              setFormData({ ...formData, documentType: val })
-              clearFieldError("documentType")
-            }}
-            placeholder="Select the type of the document..."
-            error={invalidFields.includes("documentType")}
-          />
+          <div className="flex flex-col gap-2">
+            <CustomSelect
+              options={documentTypeOptions}
+              value={formData.documentType}
+              onChange={(val) => {
+                setFormData(prev => ({ 
+                  ...prev, 
+                  documentType: val,
+                  customDocumentType: "",
+                  customDocumentDetail: ""
+                }))
+                clearFieldError("documentType")
+              }}
+              placeholder="Select the type of the document..."
+              error={invalidFields.includes("documentType")}
+            />
+
+            {/* Custom input for "others" – required */}
+            {formData.documentType === "others" && (
+              <input
+                type="text"
+                placeholder="Please specify the document type... *"
+                value={formData.customDocumentType}
+                onChange={(e) => {
+                  setFormData({ ...formData, customDocumentType: e.target.value })
+                  clearFieldError("customDocumentType")
+                }}
+                className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 animate-in fade-in zoom-in-95 transition-colors
+                  ${invalidFields.includes("customDocumentType") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-blue-300 bg-blue-50/50 focus:ring-blue-500'}`}
+              />
+            )}
+
+            {/* Required detail input for specific types */}
+            {formData.documentType && formData.documentType !== "others" && (
+              <input
+                type="text"
+                placeholder={`Enter detail for ${formData.documentType} *`}
+                value={formData.customDocumentDetail}
+                onChange={(e) => {
+                  setFormData({ ...formData, customDocumentDetail: e.target.value })
+                  clearFieldError("customDocumentDetail")
+                }}
+                className={`w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 animate-in fade-in zoom-in-95 transition-colors
+                  ${invalidFields.includes("customDocumentDetail") ? 'border-red-500 focus:ring-red-200 bg-red-50/30' : 'border-blue-300 bg-blue-50/50 focus:ring-blue-500'}`}
+              />
+            )}
+          </div>
         </div>
 
         {/* ── Description ── */}
@@ -318,7 +378,7 @@ function ArchiveDocumentForm() {
           />
         </div>
 
-        {/* ── File Drag & Drop ── */}
+        {/* ── File Drag & Drop (unchanged) ── */}
         <div className="mb-8">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Attach File (optional)
@@ -373,7 +433,6 @@ function ArchiveDocumentForm() {
         {/* ── Action Buttons ── */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-100">
           <div>
-            {/* The error message appears here on the left side */}
             {validationError && (
               <p className="text-red-500 text-sm font-medium animate-in fade-in slide-in-from-left-2">
                 {validationError}
