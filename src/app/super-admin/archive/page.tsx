@@ -213,7 +213,11 @@ export default function DigitalArchivePage() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header – title left, search + bell right */}
       <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
-        <h1 className="text-xl font-bold text-[#1a2e4a]">Digital Archive | Backlog Vault</h1>
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Digital Archive</h1>
+          <span className="text-xs text-gray-400 font-medium">Total Archived:</span>{' '}
+          <span className="text-sm text-gray-700">{filteredDocs.length}</span>
+        </div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -230,12 +234,7 @@ export default function DigitalArchivePage() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        {/* Total Archived */}
-        <div className="mb-4">
-          <span className="text-xs text-gray-400 font-medium">Total Archived:</span>{' '}
-          <span className="text-sm text-gray-700">{filteredDocs.length}</span>
-        </div>
-
+       
         {/* Filter row */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex items-center gap-1 text-gray-600">

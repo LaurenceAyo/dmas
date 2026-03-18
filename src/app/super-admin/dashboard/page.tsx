@@ -162,10 +162,10 @@ export default function SuperAdminDashboardPage() {
               <thead className="border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="text-left px-6 py-3 font-semibold">Document Name</th>
-                  <th className="text-left px-6 py-3 font-semibold">Type</th>
+                  <th className="text-left px-6 py-3 font-semibold">Document Type</th>
                   <th className="text-left px-6 py-3 font-semibold">Submitting Department</th>
                   <th className="text-left px-6 py-3 font-semibold">Date Received</th>
-                  <th className="text-left px-6 py-3 font-semibold">Status</th>
+                  <th className="text-left px-8 py-3 font-semibold">Status</th>
                   <th className="text-left px-6 py-3 font-semibold text-center">Action</th>
                 </tr>
               </thead>

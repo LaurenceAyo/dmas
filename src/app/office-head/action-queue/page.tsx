@@ -231,7 +231,9 @@ export default function ActionQueuePage() {
       <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Action Queue</h1>
-          <p className="text-sm text-gray-400">{departmentName}</p>
+           <span className="text-xs text-gray-400 font-medium">Total:</span>
+          <span className="text-sm text-gray-700 ml-1">{documents.length}</span>
+          
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -247,20 +249,13 @@ export default function ActionQueuePage() {
               className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 w-56 transition-all"
             />
           </div>
-          <button className="relative p-2.5 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-all cursor-pointer">
-            <Bell size={20} />
-            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full" />
-          </button>
+         
         </div>
       </header>
 
       {/* BODY */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        {/* Total */}
-        <div className="mb-4">
-          <span className="text-xs text-gray-400 font-medium">Total:</span>
-          <span className="text-sm text-gray-700 ml-1">{documents.length}</span>
-        </div>
+        
 
         {/* FILTER ROW */}
         <div className="flex flex-wrap items-center gap-3 mb-6">

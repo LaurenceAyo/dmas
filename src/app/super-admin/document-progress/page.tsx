@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Filter, Search, Bell, ChevronLeft, ChevronRight, ChevronDown, X, Eye } from 'lucide-react'
+import { Filter, Search, ChevronLeft, ChevronRight, ChevronDown, X, Eye } from 'lucide-react'
 
 // Custom dropdown component – now supports both string[] and { label: string, value: string }[]
 // Accepts an optional `error` prop to show red border when true
@@ -131,9 +131,9 @@ export default function DocumentProgressPage() {
     { id: 3, name: 'Scholarship Award Certificate', type: 'Financial Document', department: 'BAC', dateReceived: '03/25/2025', status: 'Pending', description: 'Sample description', submittedBy: 'Alice Brown', lastUpdate: '03/26/2025' },
     { id: 4, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Released', description: 'Sample description', submittedBy: 'Bob Johnson', lastUpdate: '03/26/2025' },
     { id: 5, name: 'Scholarship Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Denied', description: 'Sample description', submittedBy: 'Charlie Lee', lastUpdate: '03/26/2025' },
-    { id: 6, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025, 03/25/2025', status: 'Received', description: 'Sample description', submittedBy: 'Diana Prince', lastUpdate: '03/26/2025' },
-    { id: 7, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025, 03/25/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Ethan Hunt', lastUpdate: '03/26/2025' },
-    { id: 8, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025, 03/25/2025', status: 'Pending', description: 'Sample description', submittedBy: 'Fiona Glen', lastUpdate: '03/26/2025' },
+    { id: 6, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Received', description: 'Sample description', submittedBy: 'Diana Prince', lastUpdate: '03/26/2025' },
+    { id: 7, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Ethan Hunt', lastUpdate: '03/26/2025' },
+    { id: 8, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Pending', description: 'Sample description', submittedBy: 'Fiona Glen', lastUpdate: '03/26/2025' },
     { id: 9, name: 'Budget Report', type: 'Financial Document', department: 'Accounting', dateReceived: '03/26/2025', status: 'Received', description: 'Sample description', submittedBy: 'George Costanza', lastUpdate: '03/27/2025' },
     { id: 10, name: 'Procurement Request', type: 'Requisition', department: 'Supply Office', dateReceived: '03/26/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Hank Hill', lastUpdate: '03/27/2025' },
     { id: 11, name: 'Travel Authorization', type: 'Form', department: 'HR', dateReceived: '03/27/2025', status: 'Denied', description: 'Sample description', submittedBy: 'Ivy League', lastUpdate: '03/28/2025' },
@@ -259,10 +259,16 @@ export default function DocumentProgressPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* HEADER */}
-      <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
-        <h1 className="text-xl font-bold text-[#1a2e4a]">Document Progress</h1>
-        <div className="flex items-center gap-3">
+      {/* HEADER – now with total under title */}
+      <header className="bg-white border-b border-gray-200 px-8 py-4 shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-[#1a2e4a]">Document Progress</h1>
+            <div className="mt-1">
+              <span className="text-xs text-gray-400 font-medium">Total Documents:</span>
+              <span className="text-sm text-gray-700 ml-1">20</span>
+            </div>
+          </div>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -281,12 +287,6 @@ export default function DocumentProgressPage() {
 
       {/* BODY */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        {/* Total */}
-        <div className="mb-4">
-          <span className="text-xs text-gray-400 font-medium">Total:</span>
-          <span className="text-sm text-gray-700 ml-1">20</span>
-        </div>
-
         {/* FILTER ROW */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex items-center gap-1 text-gray-600">
@@ -340,10 +340,10 @@ export default function DocumentProgressPage() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-gray-600 text-xs uppercase tracking-wide">
                 <th className="text-left px-3 py-2 font-semibold w-[30%]">Document Name</th>
-                <th className="text-left px-3 py-2 font-semibold w-[20%]">Document Type</th>
-                <th className="text-left px-3 py-2 font-semibold w-[20%]">Submitting Department</th>
-                <th className="text-left px-3 py-2 font-semibold w-[15%]">Date Received</th>
-                <th className="text-center px-3 py-2 font-semibold w-[15%]">Status</th>
+                <th className="text-left px-3 py-2 font-semibold w-[27%]">Document Type</th>
+                <th className="text-left px-3 py-2 font-semibold w-[24%]">Submitting Department</th>
+                <th className="text-left px-3 py-2 font-semibold w-[13%]">Date Received</th>
+                <th className="text-center px-3 py-2 font-semibold w-[18%]">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
