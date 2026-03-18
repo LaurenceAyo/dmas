@@ -1,8 +1,29 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Search, Bell, ChevronDown } from 'lucide-react'
+import { Search, ChevronDown, X } from 'lucide-react'
+import NotificationBell from '@/components/NotificationBell'
 
+// Add animation style
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes slide-in {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    .animate-slide-in {
+      animation: slide-in 0.3s ease-out;
+    }
+  `
+  document.head.appendChild(style)
+}
 
 // Custom dropdown component
 function CustomSelect({ options, value, onChange, placeholder }: {
@@ -52,9 +73,8 @@ function CustomSelect({ options, value, onChange, placeholder }: {
                 onChange(option)
                 setIsOpen(false)
               }}
-              className={`w-full text-left px-4 py-2 text-sm transition hover:bg-gray-50 cursor-pointer ${
-                value === option ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
-              }`}
+              className={`w-full text-left px-4 py-2 text-sm transition hover:bg-gray-50 cursor-pointer ${value === option ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700'
+                }`}
             >
               {option}
             </button>
@@ -65,20 +85,72 @@ function CustomSelect({ options, value, onChange, placeholder }: {
   )
 }
 
-// Mock data
-const mockDocuments = [
-  { id: 1, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Accounting Office', dateReceived: '03/25/2025', status: 'Released' },
-  { id: 2, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Denied' },
-  { id: 3, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Approved' },
-  { id: 4, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Accounting Office', dateReceived: '03/25/2025', status: 'Released' },
-  { id: 5, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Denied' },
-  { id: 6, name: 'Budget Report', type: 'Financial Document', department: 'Accounting Office', dateReceived: '03/26/2025', status: 'Approved' },
-  { id: 7, name: 'Procurement Request', type: 'Requisition', department: 'Supply Office', dateReceived: '03/26/2025', status: 'Released' },
-  { id: 8, name: 'Historical Archive Document', type: 'Historical Document', department: 'BAC', dateReceived: '03/27/2025', status: 'Approved' },
+// Document type with modal details
+type Document = {
+  id: number
+  name: string
+  type: string
+  department: string
+  dateReceived: string
+  status: string
+  submittedBy: string
+  dateSubmitted: string
+  submittingOffice: string
+  correspondingOffice: string
+  officeRemarks: string
+  clientAcknowledgement: string
+  denialReason?: string
+}
+
+// Mock data with full details
+const mockDocuments: Document[] = [
+  {
+    id: 1,
+    name: 'Scholarship Grant Certificate',
+    type: 'Financial Document',
+    department: 'Accounting Office',
+    dateReceived: '03/25/2025',
+    status: 'Released',
+    submittedBy: 'John Doe',
+    dateSubmitted: 'March 1, 2026',
+    submittingOffice: 'Accounting Office',
+    correspondingOffice: "Dean's Office",
+    officeRemarks: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam',
+    clientAcknowledgement: 'Document received and acknowledged by the client.'
+  },
+  {
+    id: 2,
+    name: 'Scholarship Grant Certificate',
+    type: 'Financial Document',
+    department: 'Associate Dean',
+    dateReceived: '03/25/2025',
+    status: 'Denied',
+    submittedBy: 'Jane Smith',
+    dateSubmitted: 'March 2, 2026',
+    submittingOffice: 'Associate Dean',
+    correspondingOffice: 'Registrar Office',
+    officeRemarks: 'Document incomplete. Missing required signatures.',
+    clientAcknowledgement: 'Client notified of denial.',
+    denialReason: 'Missing Signature from Department Chair'
+  },
+  {
+    id: 3,
+    name: 'Scholarship Grant Certificate',
+    type: 'Financial Document',
+    department: 'Associate Dean',
+    dateReceived: '03/25/2025',
+    status: 'Approved',
+    submittedBy: 'Alice Brown',
+    dateSubmitted: 'March 3, 2026',
+    submittingOffice: 'Associate Dean',
+    correspondingOffice: 'Finance Office',
+    officeRemarks: 'All requirements met. Proceeding to next stage.',
+    clientAcknowledgement: 'Waiting for client response.'
+  },
 ]
 
-// Generate more documents to reach 20
-for (let i = 9; i <= 20; i++) {
+// Generate more documents
+for (let i = 4; i <= 20; i++) {
   mockDocuments.push({
     id: i,
     name: 'Scholarship Grant Certificate',
@@ -86,6 +158,12 @@ for (let i = 9; i <= 20; i++) {
     department: i % 3 === 0 ? 'Supply Office' : 'Accounting Office',
     dateReceived: '03/25/2025',
     status: ['Released', 'Denied', 'Approved'][i % 3],
+    submittedBy: `User ${i}`,
+    dateSubmitted: `March ${i}, 2026`,
+    submittingOffice: i % 2 === 0 ? 'Accounting Office' : 'Supply Office',
+    correspondingOffice: ["Dean's Office", 'Registrar Office', 'Finance Office'][i % 3],
+    officeRemarks: 'Standard processing remarks for this document.',
+    clientAcknowledgement: 'Pending client acknowledgement.'
   })
 }
 
@@ -99,6 +177,8 @@ export default function ActivityLogPage() {
   const [selectedStatus, setSelectedStatus] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
+  const [deniedTooltip, setDeniedTooltip] = useState<{ show: boolean; message: string; docId: number | null }>({ show: false, message: '', docId: null })
   const itemsPerPage = 10
 
   // Filter documents
@@ -133,6 +213,18 @@ export default function ActivityLogPage() {
     }
   }
 
+  // Get progress step based on status
+  const getProgressSteps = (status: string) => {
+    const steps = [
+      { label: 'Submitted', active: true, completed: true },
+      { label: 'Under Review', active: status !== 'Submitted', completed: status !== 'Submitted' },
+      { label: 'For Recommendation', active: ['Approved', 'Released'].includes(status), completed: ['Approved', 'Released'].includes(status) },
+      { label: 'Approved', active: status === 'Approved' || status === 'Released', completed: status === 'Approved' || status === 'Released' },
+      { label: 'Released', active: status === 'Released', completed: status === 'Released' }
+    ]
+    return steps
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50">
       {/* HEADER */}
@@ -155,7 +247,7 @@ export default function ActivityLogPage() {
               className="pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-64 transition-all"
             />
           </div>
-          
+          <NotificationBell />
         </div>
       </header>
 
@@ -164,7 +256,7 @@ export default function ActivityLogPage() {
         {/* FILTER ROW */}
         <div className="flex items-center gap-3 mb-6">
           <span className="text-sm font-medium text-gray-700">Filter:</span>
-          
+
           <CustomSelect
             options={documentTypes}
             value={selectedType}
@@ -206,14 +298,32 @@ export default function ActivityLogPage() {
                   <th className="text-left px-6 py-3.5 font-semibold text-gray-700">Document Type</th>
                   <th className="text-left px-6 py-3.5 font-semibold text-gray-700">Submitting Department</th>
                   <th className="text-left px-6 py-3.5 font-semibold text-gray-700">Date Received</th>
-                  <th className="text-left px-9 py-3.5 font-semibold text-gray-700">Status</th>
+                  <th className="text-left px-6 py-3.5 font-semibold text-gray-700">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {paginatedDocs.map((doc) => (
                   <tr
                     key={doc.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (doc.status === 'Denied') {
+                        // Show red tooltip for denied documents
+                        setDeniedTooltip({
+                          show: true,
+                          message: doc.denialReason || 'Document denied by office',  // ← Use dynamic message
+                          docId: doc.id
+                        })
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => {
+                          setDeniedTooltip({ show: false, message: '', docId: null })
+                        }, 5000)
+                      } else {
+                        // Show normal modal for other statuses
+                        setSelectedDoc(doc)
+                      }
+                    }}
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer relative ${doc.status === 'Denied' ? 'bg-red-50' : ''
+                      }`}
                   >
                     <td className="px-6 py-4 text-gray-800 font-medium">{doc.name}</td>
                     <td className="px-6 py-4 text-gray-600">{doc.type}</td>
@@ -259,11 +369,10 @@ export default function ActivityLogPage() {
                   <button
                     key={page}
                     onClick={() => goToPage(page)}
-                    className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-                      currentPage === page
-                        ? 'bg-gray-800 text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
-                    }`}
+                    className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition cursor-pointer ${currentPage === page
+                      ? 'bg-gray-800 text-white'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                      }`}
                   >
                     {page}
                   </button>
@@ -280,6 +389,131 @@ export default function ActivityLogPage() {
           </div>
         )}
       </div>
+      {/* RED TOOLTIP for Denied Documents */}
+      {deniedTooltip.show && (
+        <div className="fixed top-20 right-8 z-50 animate-slide-in">
+          <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-2xl flex items-start gap-3 min-w-[300px] max-w-[400px]">
+            <div className="flex-1">
+              <p className="font-bold text-sm mb-1">Denied Document</p>
+              <p className="text-xs opacity-90">{deniedTooltip.message}</p>
+            </div>
+            <button
+              onClick={() => setDeniedTooltip({ show: false, message: '', docId: null })}
+              className="text-white hover:bg-red-600 rounded p-1 transition"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* MODAL - Document Tracking Details */}
+      {selectedDoc && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+          onClick={() => setSelectedDoc(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-gray-100 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-800">Document Tracking Details</h2>
+              <button
+                onClick={() => setSelectedDoc(null)}
+                className="p-1 rounded-lg hover:bg-gray-100 transition text-gray-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Progress Tracker */}
+            {/* Progress Tracker Stepper */}
+            <div className="px-8 py-8 border-b border-gray-100">
+              <div className="relative flex items-start justify-between px-2 sm:px-8">
+                {getProgressSteps(selectedDoc.status).map((step, index, arr) => (
+                  <div key={index} className="flex flex-col items-center relative" style={{ flex: 1 }}>
+                    
+                    {/* 💡 FIX: Changed -z-10 to z-0 so it doesn't hide behind the modal background */}
+                    {index < arr.length - 1 && (
+                      <div
+                        className={`absolute top-3.5 left-1/2 w-full h-[3px] z-0 transition-colors duration-300 ${
+                          arr[index + 1].completed ? 'bg-green-500' : 'bg-gray-200'
+                        }`}
+                      />
+                    )}
+
+                    {/* Circle Indicator (Stays z-10 to sit on top of the line) */}
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 relative z-10 transition-colors duration-300 ${
+                        step.completed
+                          ? 'bg-green-500 border-green-500 shadow-[0_0_0_4px_rgba(34,197,94,0.2)]'
+                          : 'bg-white border-gray-300'
+                      }`}
+                    />
+
+                    {/* Step Label */}
+                    <p
+                      className={`text-[11px] font-bold mt-4 text-center leading-tight uppercase tracking-wider ${
+                        step.active ? 'text-gray-900' : (step.completed ? 'text-gray-600' : 'text-gray-400')
+                      }`}
+                      style={{ maxWidth: '90px' }}
+                    >
+                      {step.label}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Document Details */}
+            <div className="px-6 py-6 grid grid-cols-2 gap-4 border-b border-gray-200">
+              <div>
+                <p className="text-xs text-gray-500">Document Name:</p>
+                <p className="text-sm font-medium text-gray-800">{selectedDoc.name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Document Type:</p>
+                <p className="text-sm font-medium text-gray-800">{selectedDoc.type}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Submitting Office:</p>
+                <p className="text-sm font-medium text-gray-800">{selectedDoc.department}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Date Submitted:</p>
+                <p className="text-sm font-medium text-gray-800">{selectedDoc.dateSubmitted}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Corresponding office:</p>
+                <p className="text-sm font-medium text-gray-800">{selectedDoc.correspondingOffice}</p>
+              </div>
+            </div>
+
+            {/* Office Remarks */}
+            <div className="px-6 py-6 border-b border-gray-200">
+              <h3 className="text-sm font-bold text-gray-800 mb-2">Office Remarks</h3>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {selectedDoc.officeRemarks}
+                </p>
+              </div>
+            </div>
+
+            {/* Client Acknowledgement */}
+            <div className="px-6 py-6">
+              <h3 className="text-sm font-bold text-gray-800 mb-2">Client Acknowledgement:</h3>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm text-gray-600">
+                  {selectedDoc.clientAcknowledgement}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -35,7 +35,7 @@ const initialNotifications = [
 ]
 
 // ── Helper Function: Status Colors ─────────────────────────────────────────
-const getStatusColor = (status) => {
+const getStatusColor = (status:String) => {
   switch (status) {
     case 'Approved':
       return 'bg-green-50 text-green-600 border-green-200'
@@ -130,7 +130,7 @@ export default function OfficeHeadDashboardPage() {
       <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Hi Office Head!</h1>
-          <p className="text-sm text-gray-400">Welcome back to DMAS Dashboard</p>
+          <p className="text-sm text-gray-400">Accounting Office</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">

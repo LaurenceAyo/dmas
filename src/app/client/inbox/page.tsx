@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Search, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import NotificationBell from '@/components/NotificationBell' // Adjust path if needed
 
 // ── Mock Notifications Data (Added missing metadata for the modal) ──
 const mockNotifications = [
@@ -123,7 +124,7 @@ export default function InboxPage() {
               className="pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-64 transition-all"
             />
           </div>
-          
+          <NotificationBell />
         </div>
       </header>
 
