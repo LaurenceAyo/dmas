@@ -305,7 +305,7 @@ export default function DigitalArchivePage() {
                         <Eye size={16} />
                       </button>
                       <button
-                        className="p-2 rounded-full text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+                        className="p-2 rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
                         onClick={() => {
                           setDeleteDoc(doc)
                           setDeleteReason('')
