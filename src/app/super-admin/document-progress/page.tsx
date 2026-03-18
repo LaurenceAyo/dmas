@@ -266,7 +266,7 @@ export default function DocumentProgressPage() {
             <h1 className="text-xl font-bold text-[#1a2e4a]">Document Progress</h1>
             <div className="mt-1">
               <span className="text-xs text-gray-400 font-medium">Total Documents:</span>
-              <span className="text-sm text-gray-700 ml-1">20</span>
+              <span className="text-sm text-gray-700 ml-1">{filteredDocs.length}</span>
             </div>
           </div>
           <div className="relative">

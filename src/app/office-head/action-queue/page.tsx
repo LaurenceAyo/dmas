@@ -232,7 +232,7 @@ export default function ActionQueuePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Action Queue</h1>
            <span className="text-xs text-gray-400 font-medium">Total:</span>
-          <span className="text-sm text-gray-700 ml-1">{documents.length}</span>
+          <span className="text-sm text-gray-700 ml-1">{filteredDocs.length}</span>
           
         </div>
         <div className="flex items-center gap-3">
