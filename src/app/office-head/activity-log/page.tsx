@@ -247,7 +247,7 @@ export default function ActivityLogPage() {
               className="pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-64 transition-all"
             />
           </div>
-          <NotificationBell />
+          
         </div>
       </header>
 
@@ -430,36 +430,36 @@ export default function ActivityLogPage() {
             </div>
 
             {/* Progress Tracker */}
-            {/* Progress Tracker Stepper */}
-            <div className="px-8 py-8 border-b border-gray-100">
-              <div className="relative flex items-start justify-between px-2 sm:px-8">
-                {getProgressSteps(selectedDoc.status).map((step, index, arr) => (
+            <div className="px-6 py-6 border-b border-gray-200">
+              <div className="relative flex items-start justify-between px-4">
+                {getProgressSteps(selectedDoc.status).map((step, index) => (
                   <div key={index} className="flex flex-col items-center relative" style={{ flex: 1 }}>
-                    
-                    {/* 💡 FIX: Changed -z-10 to z-0 so it doesn't hide behind the modal background */}
-                    {index < arr.length - 1 && (
+                    {/* Line connecting to next circle (drawn BEFORE the circle) */}
+                    {index < getProgressSteps(selectedDoc.status).length - 1 && (
                       <div
-                        className={`absolute top-3.5 left-1/2 w-full h-[3px] z-0 transition-colors duration-300 ${
-                          arr[index + 1].completed ? 'bg-green-500' : 'bg-gray-200'
-                        }`}
+                        className={`absolute top-4 left-1/2 w-full h-0.5 ${getProgressSteps(selectedDoc.status)[index + 1].completed
+                          ? 'bg-green-500'
+                          : 'bg-gray-200'
+                          }`}
+                        style={{ zIndex: 0 }}
                       />
                     )}
 
-                    {/* Circle Indicator (Stays z-10 to sit on top of the line) */}
+                    {/* Circle with 3px black outline */}
                     <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 relative z-10 transition-colors duration-300 ${
-                        step.completed
-                          ? 'bg-green-500 border-green-500 shadow-[0_0_0_4px_rgba(34,197,94,0.2)]'
-                          : 'bg-white border-gray-300'
-                      }`}
-                    />
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-[1px] border-black relative z-10 ${step.completed
+                        ? 'bg-green-500 text-white'
+                        : 'bg-white text-gray-400'
+                        }`}
+                    >
+                      {step.completed ? '' : ''}
+                    </div>
 
-                    {/* Step Label */}
+                    {/* Label */}
                     <p
-                      className={`text-[11px] font-bold mt-4 text-center leading-tight uppercase tracking-wider ${
-                        step.active ? 'text-gray-900' : (step.completed ? 'text-gray-600' : 'text-gray-400')
-                      }`}
-                      style={{ maxWidth: '90px' }}
+                      className={`text-xs mt-3 text-center leading-tight ${step.active ? 'text-gray-800 font-medium' : 'text-gray-400'
+                        }`}
+                      style={{ maxWidth: '80px' }}
                     >
                       {step.label}
                     </p>
