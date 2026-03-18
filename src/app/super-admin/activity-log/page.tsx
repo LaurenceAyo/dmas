@@ -4,6 +4,27 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, ChevronDown, X } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 
+// Add animation style
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes slide-in {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    .animate-slide-in {
+      animation: slide-in 0.3s ease-out;
+    }
+  `
+  document.head.appendChild(style)
+}
+
 // Custom dropdown component
 function CustomSelect({ options, value, onChange, placeholder }: {
   options: string[]
@@ -74,9 +95,11 @@ type Document = {
   status: string
   submittedBy: string
   dateSubmitted: string
+  submittingOffice: string
   correspondingOffice: string
   officeRemarks: string
   clientAcknowledgement: string
+  denialReason?: string
 }
 
 // Mock data with full details
@@ -90,6 +113,7 @@ const mockDocuments: Document[] = [
     status: 'Released',
     submittedBy: 'John Doe',
     dateSubmitted: 'March 1, 2026',
+    submittingOffice: 'Accounting Office',
     correspondingOffice: "Dean's Office",
     officeRemarks: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam',
     clientAcknowledgement: 'Document received and acknowledged by the client.'
@@ -103,9 +127,11 @@ const mockDocuments: Document[] = [
     status: 'Denied',
     submittedBy: 'Jane Smith',
     dateSubmitted: 'March 2, 2026',
+    submittingOffice: 'Associate Dean',
     correspondingOffice: 'Registrar Office',
     officeRemarks: 'Document incomplete. Missing required signatures.',
-    clientAcknowledgement: 'Client notified of denial.'
+    clientAcknowledgement: 'Client notified of denial.',
+    denialReason: 'Missing Signature from Department Chair'
   },
   {
     id: 3,
@@ -116,6 +142,7 @@ const mockDocuments: Document[] = [
     status: 'Approved',
     submittedBy: 'Alice Brown',
     dateSubmitted: 'March 3, 2026',
+    submittingOffice: 'Associate Dean',
     correspondingOffice: 'Finance Office',
     officeRemarks: 'All requirements met. Proceeding to next stage.',
     clientAcknowledgement: 'Waiting for client response.'
@@ -133,6 +160,7 @@ for (let i = 4; i <= 20; i++) {
     status: ['Released', 'Denied', 'Approved'][i % 3],
     submittedBy: `User ${i}`,
     dateSubmitted: `March ${i}, 2026`,
+    submittingOffice: i % 2 === 0 ? 'Accounting Office' : 'Supply Office',
     correspondingOffice: ["Dean's Office", 'Registrar Office', 'Finance Office'][i % 3],
     officeRemarks: 'Standard processing remarks for this document.',
     clientAcknowledgement: 'Pending client acknowledgement.'
@@ -150,6 +178,7 @@ export default function ActivityLogPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
+  const [deniedTooltip, setDeniedTooltip] = useState<{ show: boolean; message: string; docId: number | null }>({ show: false, message: '', docId: null })
   const itemsPerPage = 10
 
   // Filter documents
@@ -276,8 +305,25 @@ export default function ActivityLogPage() {
                 {paginatedDocs.map((doc) => (
                   <tr
                     key={doc.id}
-                    onClick={() => setSelectedDoc(doc)}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (doc.status === 'Denied') {
+                        // Show red tooltip for denied documents
+                        setDeniedTooltip({
+                          show: true,
+                          message: doc.denialReason || 'Document denied by office',  // ← Use dynamic message
+                          docId: doc.id
+                        })
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => {
+                          setDeniedTooltip({ show: false, message: '', docId: null })
+                        }, 5000)
+                      } else {
+                        // Show normal modal for other statuses
+                        setSelectedDoc(doc)
+                      }
+                    }}
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer relative ${doc.status === 'Denied' ? 'bg-red-50' : ''
+                      }`}
                   >
                     <td className="px-6 py-4 text-gray-800 font-medium">{doc.name}</td>
                     <td className="px-6 py-4 text-gray-600">{doc.type}</td>
@@ -343,6 +389,24 @@ export default function ActivityLogPage() {
           </div>
         )}
       </div>
+      {/* RED TOOLTIP for Denied Documents */}
+      {deniedTooltip.show && (
+        <div className="fixed top-20 right-8 z-50 animate-slide-in">
+          <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-2xl flex items-start gap-3 min-w-[300px] max-w-[400px]">
+            <div className="flex-1">
+              <p className="font-bold text-sm mb-1">Denied Document</p>
+              <p className="text-xs opacity-90">{deniedTooltip.message}</p>
+            </div>
+            <button
+              onClick={() => setDeniedTooltip({ show: false, message: '', docId: null })}
+              className="text-white hover:bg-red-600 rounded p-1 transition"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
 
       {/* MODAL - Document Tracking Details */}
       {selectedDoc && (
@@ -374,8 +438,8 @@ export default function ActivityLogPage() {
                     {index < getProgressSteps(selectedDoc.status).length - 1 && (
                       <div
                         className={`absolute top-4 left-1/2 w-full h-0.5 ${getProgressSteps(selectedDoc.status)[index + 1].completed
-                            ? 'bg-green-500'
-                            : 'bg-gray-200'
+                          ? 'bg-green-500'
+                          : 'bg-gray-200'
                           }`}
                         style={{ zIndex: 0 }}
                       />
@@ -415,8 +479,8 @@ export default function ActivityLogPage() {
                 <p className="text-sm font-medium text-gray-800">{selectedDoc.type}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Submitted By:</p>
-                <p className="text-sm font-medium text-gray-800">{selectedDoc.submittedBy}</p>
+                <p className="text-xs text-gray-500">Submitting Office:</p>
+                <p className="text-sm font-medium text-gray-800">{selectedDoc.department}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Date Submitted:</p>
