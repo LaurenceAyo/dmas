@@ -108,51 +108,8 @@ export default function AddNewPage() {
     return <NewDocumentForm onBack={() => setSelected(null)} />
   }
 
-  const router = useRouter()
-  const [selected, setSelected] = useState<null | "new" | "archive">(null)
-
-  if (selected === "new") {
-    return <NewDocumentForm onBack={() => setSelected(null)} />
-  }
-
   return (
     <div className="flex-1 p-8">
-      <Breadcrumb items={[{ label: "Add New" }]} />
-
-      <div className="mt-16 flex flex-col items-center gap-6">
-        <p className="text-sm text-gray-500">Please select action you want to do:</p>
-
-        <div className="flex gap-8">
-          {/* New Button */}
-          <button
-            onClick={() => setSelected("new")}
-            onMouseEnter={e => (e.currentTarget.style.boxShadow = "4px 4px 4px rgba(0,0,0,0.5)")}
-            onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
-            className="flex flex-col items-center justify-center w-36 h-36 rounded-xl bg-[#367588] text-white cursor-pointer transition-all"
-          >
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="12" y1="11" x2="12" y2="17"/>
-              <line x1="9" y1="14" x2="15" y2="14"/>
-            </svg>
-            <span className="mt-2 text-sm font-medium">New</span>
-          </button>
-
-          {/* Archive Document Button */}
-          <button
-            onClick={() => router.push("/super-admin/add-new-archive")}
-            className="flex flex-col items-center justify-center w-40 h-36 rounded-xl bg-white border-2 border-gray-200 text-gray-700 hover:border-gray-400 transition cursor-pointer"
-          >
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.5">
-              <polyline points="21 8 21 21 3 21 3 8"/>
-              <rect x="1" y="3" width="22" height="5"/>
-              <line x1="10" y1="12" x2="14" y2="12"/>
-            </svg>
-            <span className="px-4 mt-2 text-sm font-medium text-center">Archive Document</span>
-          </button>
-        </div>
-      </div>
       <Breadcrumb items={[{ label: "Add New" }]} />
 
       <div className="mt-16 flex flex-col items-center gap-6">
