@@ -3,6 +3,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, Bell, FileText, Calendar, Building2, Tag, X, Download, Eye, ChevronLeft, ChevronRight, ChevronDown, Filter } from 'lucide-react'
 
+// ── Added 'remarks' to the interface ──
+interface Document {
+  id: number
+  name: string
+  type: string
+  department: string
+  date: string
+  status: string
+  description: string
+  remarks?: string 
+}
+
 // Custom dropdown component – identical to DocumentProgress
 function CustomSelect({ options, value, onChange, placeholder, minWidth }: {
   options: string[] | { label: string; value: string }[]
@@ -61,18 +73,18 @@ function CustomSelect({ options, value, onChange, placeholder, minWidth }: {
   )
 }
 
-// ── Mock Data for the Logged-in User ───────────────────────────────────────
-const myDocuments = [
-  { id: 1, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Accounting Office', date: '03/25/2026', status: 'Pending Review', description: 'Attached are the requirements for the CHED Scholarship.' },
-  { id: 2, name: 'Leave of Absence Form', type: 'HR Document', department: 'Associate Dean', date: '03/20/2026', status: 'Approved', description: 'Leave request for medical reasons from March 22 to March 25.' },
-  { id: 3, name: 'Procurement Request', type: 'Financial Document', department: 'BAC', date: '03/15/2026', status: 'Denied', description: 'Requesting new monitors for the IT lab.' },
-  { id: 4, name: 'Clearance Form', type: 'Academic Document', department: "Dean's Office", date: '03/10/2026', status: 'Received', description: 'End of semester clearance.' },
-  { id: 5, name: 'Travel Order', type: 'Administrative', department: 'Supply Office', date: '03/05/2026', status: 'Approved', description: 'Travel order for the upcoming seminar in Manila.' },
-  { id: 6, name: 'Budget Proposal', type: 'Financial Document', department: 'Accounting Office', date: '03/01/2026', status: 'Pending Review', description: 'Proposed budget for the IT department equipment.' },
+// ── Mock Data (Added dummy remarks) ───────────────────────────────────────
+const myDocuments: Document[] = [
+  { id: 1, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Accounting Office', date: '03/25/2026', status: 'Pending Review', description: 'Attached are the requirements for the CHED Scholarship.', remarks: '' },
+  { id: 2, name: 'Leave of Absence Form', type: 'HR Document', department: 'Associate Dean', date: '03/20/2026', status: 'Approved', description: 'Leave request for medical reasons from March 22 to March 25.', remarks: 'Approved. Get well soon!' },
+  { id: 3, name: 'Procurement Request', type: 'Financial Document', department: 'BAC', date: '03/15/2026', status: 'Denied', description: 'Requesting new monitors for the IT lab.', remarks: 'Denied. Missing department head signatures on page 2.' },
+  { id: 4, name: 'Clearance Form', type: 'Academic Document', department: "Dean's Office", date: '03/10/2026', status: 'Received', description: 'End of semester clearance.', remarks: '' },
+  { id: 5, name: 'Travel Order', type: 'Administrative', department: 'Supply Office', date: '03/05/2026', status: 'Approved', description: 'Travel order for the upcoming seminar in Manila.', remarks: 'Valid. Approved for travel.' },
+  { id: 6, name: 'Budget Proposal', type: 'Financial Document', department: 'Accounting Office', date: '03/01/2026', status: 'Pending Review', description: 'Proposed budget for the IT department equipment.', remarks: '' },
 ]
 
 // ── Helper Function: Status Colors ─────────────────────────────────────────
-const getStatusColor = (status) => {
+const getStatusColor = (status:string) => {
   switch (status) {
     case 'Approved':  return 'bg-green-100 text-green-700 border-green-200'
     case 'Denied':    return 'bg-red-100 text-red-700 border-red-200'
@@ -90,7 +102,7 @@ const initialNotifications = [
 ]
 
 // ── 1. The Revamped Modal Component ────────────────────────────────────────
-function DocumentDetailsModal({ document, onClose }) {
+function DocumentDetailsModal({ document, onClose }: { document: Document; onClose: () => void }) {
   if (!document) return null
 
   return (
@@ -100,9 +112,9 @@ function DocumentDetailsModal({ document, onClose }) {
     >
       <div 
         onClick={(e) => e.stopPropagation()} 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
       >
-        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/50 shrink-0">
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h2 className="text-lg font-bold text-slate-800">Document Details</h2>
@@ -120,7 +132,7 @@ function DocumentDetailsModal({ document, onClose }) {
           </button>
         </div>
 
-        <div className="px-6 py-6">
+        <div className="px-6 py-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
           <div className="flex items-center gap-3 mb-5">  
           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium border gap-y-4 tracking-wider uppercase ${getStatusColor(document.status)}`}>
                 {document.status}
@@ -152,9 +164,26 @@ function DocumentDetailsModal({ document, onClose }) {
               {document.description || "No description provided."}
             </div>
           </div>
+
+          {/* ── Added Remarks Section ── */}
+          <div className="mt-6">
+            <h3 className="text-sm font-bold text-slate-800 mb-3">Office Remarks</h3>
+            <div className={`rounded-xl p-4 text-sm leading-relaxed max-h-40 overflow-y-auto border ${
+              document.status === 'Denied' 
+                ? 'bg-red-50/50 border-red-100 text-red-700' 
+                : 'bg-slate-50 border-slate-100 text-slate-600'
+            }`}>
+              {document.remarks ? (
+                <span>{document.remarks}</span>
+              ) : (
+                <span className="italic opacity-60">No remarks provided by the office yet.</span>
+              )}
+            </div>
+          </div>
+
         </div>
 
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
           <button className="flex items-center gap-2 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors cursor-pointer">
             <Download size={14} />
             View Attachment
@@ -174,7 +203,7 @@ function DocumentDetailsModal({ document, onClose }) {
 // ── 2. The Main Page Component ─────────────────────────────────────────────
 export default function MyDocumentsPage() {
   const [search, setSearch] = useState('')
-  const [selectedDocument, setSelectedDocument] = useState(null)
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState(initialNotifications)
   const notificationRef = useRef<HTMLDivElement>(null)
@@ -262,16 +291,6 @@ export default function MyDocumentsPage() {
           </div>
 
           <div className="relative" ref={notificationRef}>
-            <button 
-              onClick={() => setShowNotifications(!showNotifications)}
-              className={`p-2.5 rounded-xl border transition-all relative ${
-                showNotifications ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer shadow-sm'
-              }`}
-            >
-              <Bell size={20} />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full" />
-            </button>
-
             {showNotifications && (
               <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
                 <div className="px-5 py-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
