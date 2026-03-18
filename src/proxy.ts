@@ -29,7 +29,7 @@ export async function proxy(request: NextRequest) {
   }
 
   //Remove me once done
-  if (request.nextUrl.pathname.startsWith('/super-admin/add-new')) {
+  if (request.nextUrl.pathname.startsWith('/super-admin/activity-log')) {
   return NextResponse.next()
 }
   
