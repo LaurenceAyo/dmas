@@ -29,7 +29,7 @@ export async function proxy(request: NextRequest) {
   }
 
   //Remove me once done
-  if (request.nextUrl.pathname.startsWith('/office-head/action-queue')) {
+  if (request.nextUrl.pathname.startsWith('/api/test-email')) {
   return NextResponse.next()
 }
   
