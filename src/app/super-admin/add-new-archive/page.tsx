@@ -206,11 +206,7 @@ function ArchiveDocumentForm() {
           return
         }
 
-        const { data: urlData } = supabase.storage
-          .from('documents')
-          .getPublicUrl(filePath)
-
-        fileUrl  = urlData.publicUrl
+        fileUrl  = filePath   // store path, not public URL
         fileName = file.name
         fileSize = file.size
       }

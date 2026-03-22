@@ -1,10 +1,30 @@
 'use client'
-
-import { useState, useRef, useEffect } from 'react'
+import { getStatusBadgeColor, formatStatus } from '@/lib/utils/status'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Filter, Search, ChevronLeft, ChevronRight, ChevronDown, X, Eye } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
-// Custom dropdown component – now supports both string[] and { label: string, value: string }[]
-// Accepts an optional `error` prop to show red border when true
+// ── Types ─────────────────────────────────────────────────────────────────
+interface Document {
+  id: string
+  title: string
+  document_type: string | null
+  document_type_detail: string | null
+  module_type: string
+  status: string
+  description: string | null
+  file_url: string | null
+  file_name: string | null
+  created_at: string
+  updated_at: string
+  submitted_by: string | null
+  current_office_id: string | null
+  departments: { name: string } | null
+  profiles: { full_name: string } | null
+  current_office: { name: string } | null
+}
+
+// ── Custom Select ─────────────────────────────────────────────────────────
 function CustomSelect({ options, value, onChange, placeholder, minWidth, error = false }: {
   options: string[] | { label: string; value: string }[]
   value: string
@@ -26,12 +46,9 @@ function CustomSelect({ options, value, onChange, placeholder, minWidth, error =
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Normalize options to always be objects with label and value
   const normalizedOptions = options.map(opt =>
     typeof opt === 'string' ? { label: opt, value: opt } : opt
   )
-
-  // Find the selected option's label to display in the button
   const selectedLabel = normalizedOptions.find(opt => opt.value === value)?.label || ''
 
   return (
@@ -48,14 +65,10 @@ function CustomSelect({ options, value, onChange, placeholder, minWidth, error =
       </button>
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-40 overflow-y-auto">
-          {/* Adjust max-h-40 to change dropdown panel height (e.g., max-h-32 for shorter, max-h-48 for taller) */}
           {normalizedOptions.map((option) => (
             <button
               key={option.value}
-              onClick={() => {
-                onChange(option.value)
-                setIsOpen(false)
-              }}
+              onClick={() => { onChange(option.value); setIsOpen(false) }}
               className={`w-full text-left px-4 py-2.5 text-sm transition hover:bg-blue-50 cursor-pointer ${
                 value === option.value ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600'
               }`}
@@ -69,37 +82,93 @@ function CustomSelect({ options, value, onChange, placeholder, minWidth, error =
   )
 }
 
-export default function DocumentProgressPage() {
-  // ------------------------------------------------------------
-  // STATE – filters and search
-  // ------------------------------------------------------------
-  const [selectedType, setSelectedType] = useState('')
-  const [selectedDept, setSelectedDept] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: '2-digit', day: '2-digit', year: 'numeric'
+  })
+}
 
-  // ------------------------------------------------------------
-  // PAGINATION STATE
-  // ------------------------------------------------------------
-  const [currentPage, setCurrentPage] = useState(1)
+// ── Options ───────────────────────────────────────────────────────────────
+const statusOptions = [
+  { label: 'Pending',         value: 'pending'              },
+  { label: 'Received',        value: 'in_process'           },
+  { label: 'Approved',        value: 'approved'             },
+  { label: 'Pending Approval',value: 'recommended_approval' },
+  { label: 'Denied',          value: 'denied'               },
+  { label: 'Released',        value: 'released'             },
+]
+
+const actionOptions = [
+  { label: 'Received',        value: 'in_process'           },
+  { label: 'Approved',        value: 'approved'             },
+  { label: 'Pending Approval',value: 'recommended_approval' },
+  { label: 'Denied',          value: 'denied'               },
+  { label: 'Released',        value: 'released'             },
+]
+
+// ── Main Page ─────────────────────────────────────────────────────────────
+export default function DocumentProgressPage() {
+  const supabase = createClient()
+
+  const [documents, setDocuments]       = useState<Document[]>([])
+  const [departments, setDepartments]   = useState<{ id: string; name: string }[]>([])
+  const [fetchLoading, setFetchLoading] = useState(true)
+  const [fetchError, setFetchError]     = useState('')
+  const [selectedDept, setSelectedDept]     = useState('')
+  const [selectedStatus, setSelectedStatus] = useState('')
+  const [searchQuery, setSearchQuery]       = useState('')
+  const [currentPage, setCurrentPage]       = useState(1)
   const itemsPerPage = 8
 
-  // ------------------------------------------------------------
-  // MODAL STATE – which document is selected (null = no modal)
-  // ------------------------------------------------------------
-  const [selectedDoc, setSelectedDoc] = useState<typeof documents[0] | null>(null)
-
-  // ------------------------------------------------------------
-  // MODAL INTERNAL DROPDOWN STATES
-  // ------------------------------------------------------------
-  const [actionTaken, setActionTaken] = useState('')
-  const [corrOffice, setCorrOffice] = useState('')
-  const [remarks, setRemarks] = useState('')
-  const [submitError, setSubmitError] = useState('')
+  const [selectedDoc, setSelectedDoc]           = useState<Document | null>(null)
+  const [actionTaken, setActionTaken]           = useState('')
+  const [corrOffice, setCorrOffice]             = useState('')
+  const [remarks, setRemarks]                   = useState('')
+  const [submitError, setSubmitError]           = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [submitLoading, setSubmitLoading]       = useState(false)
+  const [urlLoading, setUrlLoading]             = useState(false)
 
-  // Reset modal fields when a new document is opened
+  // ── Fetch — only process_routing ──────────────────────────────────────
+  const fetchDocuments = useCallback(async () => {
+    setFetchLoading(true)
+    setFetchError('')
+
+    const { data, error } = await supabase
+      .from('documents')
+      .select(`
+        id, title, document_type, document_type_detail,
+        module_type, status, description, file_url, file_name,
+        created_at, updated_at, submitted_by, current_office_id,
+        departments!documents_department_id_fkey ( name ),
+        profiles!documents_submitted_by_fkey ( full_name ),
+        current_office:departments!documents_current_office_id_fkey ( name )
+      `)
+      .eq('module_type', 'process_routing')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      setFetchError('Failed to load documents. Please refresh.')
+    } else {
+      setDocuments((data as any) || [])
+    }
+    setFetchLoading(false)
+  }, [])
+
+  const fetchDepartments = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('departments')
+      .select('id, name')
+      .order('name')
+    if (!error && data) setDepartments(data)
+  }, [])
+
+  useEffect(() => {
+    fetchDocuments()
+    fetchDepartments()
+  }, [fetchDocuments, fetchDepartments])
+
   useEffect(() => {
     if (selectedDoc) {
       setActionTaken('')
@@ -111,163 +180,122 @@ export default function DocumentProgressPage() {
     }
   }, [selectedDoc])
 
-  // ------------------------------------------------------------
-  // MOCK DATA (20 documents) – includes description, submittedBy, lastUpdate, and imageUrl for demo
-  // ------------------------------------------------------------
-  const documents = [
-    {
-      id: 1,
-      name: 'Request Stock Items',
-      type: 'Requisition and Issue Slip (RIS)',
-      department: 'Supply Office',
-      dateReceived: '03/25/2025',
-      status: 'Received',
-      description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
-      submittedBy: 'John Doe',
-      lastUpdate: '03/26/2025',
-      imageUrl: '/sample.jpg', // ← Add this field to test the preview button
-    },
-    { id: 2, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Supply Office', dateReceived: '03/25/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Jane Smith', lastUpdate: '03/26/2025' },
-    { id: 3, name: 'Scholarship Award Certificate', type: 'Financial Document', department: 'BAC', dateReceived: '03/25/2025', status: 'Pending', description: 'Sample description', submittedBy: 'Alice Brown', lastUpdate: '03/26/2025' },
-    { id: 4, name: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Released', description: 'Sample description', submittedBy: 'Bob Johnson', lastUpdate: '03/26/2025' },
-    { id: 5, name: 'Scholarship Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Denied', description: 'Sample description', submittedBy: 'Charlie Lee', lastUpdate: '03/26/2025' },
-    { id: 6, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Received', description: 'Sample description', submittedBy: 'Diana Prince', lastUpdate: '03/26/2025' },
-    { id: 7, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Ethan Hunt', lastUpdate: '03/26/2025' },
-    { id: 8, name: 'Scholarships Grant Certificate', type: 'Historical Document', department: 'Associate Dean', dateReceived: '03/25/2025', status: 'Pending', description: 'Sample description', submittedBy: 'Fiona Glen', lastUpdate: '03/26/2025' },
-    { id: 9, name: 'Budget Report', type: 'Financial Document', department: 'Accounting', dateReceived: '03/26/2025', status: 'Received', description: 'Sample description', submittedBy: 'George Costanza', lastUpdate: '03/27/2025' },
-    { id: 10, name: 'Procurement Request', type: 'Requisition', department: 'Supply Office', dateReceived: '03/26/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Hank Hill', lastUpdate: '03/27/2025' },
-    { id: 11, name: 'Travel Authorization', type: 'Form', department: 'HR', dateReceived: '03/27/2025', status: 'Denied', description: 'Sample description', submittedBy: 'Ivy League', lastUpdate: '03/28/2025' },
-    { id: 12, name: 'Meeting Minutes', type: 'Minutes', department: 'Board', dateReceived: '03/27/2025', status: 'Released', description: 'Sample description', submittedBy: 'Jack Sparrow', lastUpdate: '03/28/2025' },
-    { id: 13, name: 'Contract Renewal', type: 'Legal', department: 'Legal', dateReceived: '03/28/2025', status: 'Pending', description: 'Sample description', submittedBy: 'Kate Austen', lastUpdate: '03/29/2025' },
-    { id: 14, name: 'Purchase Order', type: 'Order', department: 'Procurement', dateReceived: '03/28/2025', status: 'Received', description: 'Sample description', submittedBy: 'Leo Messi', lastUpdate: '03/29/2025' },
-    { id: 15, name: 'Invoice', type: 'Financial', department: 'Accounting', dateReceived: '03/29/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Mona Lisa', lastUpdate: '03/30/2025' },
-    { id: 16, name: 'Receipt', type: 'Financial', department: 'Accounting', dateReceived: '03/29/2025', status: 'Denied', description: 'Sample description', submittedBy: 'Ned Stark', lastUpdate: '03/30/2025' },
-    { id: 17, name: 'Application Form', type: 'Form', department: 'HR', dateReceived: '03/30/2025', status: 'Received', description: 'Sample description', submittedBy: 'Oscar Wilde', lastUpdate: '03/31/2025' },
-    { id: 18, name: 'Evaluation Report', type: 'Report', department: 'Academic', dateReceived: '03/30/2025', status: 'Pending', description: 'Sample description', submittedBy: 'Peter Pan', lastUpdate: '03/31/2025' },
-    { id: 19, name: 'Certificate of Attendance', type: 'Certificate', department: 'Training', dateReceived: '03/31/2025', status: 'Released', description: 'Sample description', submittedBy: 'Quinn Fabray', lastUpdate: '04/01/2025' },
-    { id: 20, name: 'Memorandum', type: 'Memo', department: 'Executive', dateReceived: '03/31/2025', status: 'Approved', description: 'Sample description', submittedBy: 'Rick Grimes', lastUpdate: '04/01/2025' },
-  ]
+  // ── File Preview ──────────────────────────────────────────────────────
+  const handleViewFile = async () => {
+    if (!selectedDoc?.file_url) return
+    setUrlLoading(true)
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(selectedDoc.file_url, 3600)
+    if (!error && data) window.open(data.signedUrl, '_blank')
+    setUrlLoading(false)
+  }
 
-  // ------------------------------------------------------------
-  // UNIQUE VALUES FOR DROPDOWNS (used in filter bar)
-  // ------------------------------------------------------------
-  const documentTypes = [...new Set(documents.map(d => d.type))]
-  const departments = [...new Set(documents.map(d => d.department))]
-
-  // Status dropdown options – using objects to display "Pending Approval" but filter by "Pending"
-  const statusOptions = [
-    { label: 'Received', value: 'Received' },
-    { label: 'Released', value: 'Released' },
-    { label: 'Approved', value: 'Approved' },
-    { label: 'Denied', value: 'Denied' },
-    { label: 'Pending Approval', value: 'Pending' },
-  ]
-
-  // Options for Action Taken dropdown – updated "Pending" to "Pending Approval"
-  const actionOptions = ['Received', 'Approved', 'Pending Approval', 'Released', 'Denied']
-
-  // Shorter list for Corresponding Office dropdown (as per image)
-  const correspondingOfficeOptions = ['BAC', 'Associate Dean', 'Accounting', 'HR', 'Board']
-
-  // ------------------------------------------------------------
-  // FILTERING LOGIC
-  // ------------------------------------------------------------
+  // ── Filter — no module_type filter ───────────────────────────────────
   const filteredDocs = documents.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesType = !selectedType || doc.type === selectedType
-    const matchesDept = !selectedDept || doc.department === selectedDept
+    const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesDept   = !selectedDept   || doc.departments?.name === selectedDept
     const matchesStatus = !selectedStatus || doc.status === selectedStatus
-    return matchesSearch && matchesType && matchesDept && matchesStatus
+    return matchesSearch && matchesDept && matchesStatus
   })
 
-  // ------------------------------------------------------------
-  // PAGINATION CALCULATIONS
-  // ------------------------------------------------------------
-  const totalPages = Math.ceil(filteredDocs.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
+  const totalPages    = Math.ceil(filteredDocs.length / itemsPerPage)
+  const startIndex    = (currentPage - 1) * itemsPerPage
   const paginatedDocs = filteredDocs.slice(startIndex, startIndex + itemsPerPage)
 
-  // ------------------------------------------------------------
-  // CLEAR ALL FILTERS
-  // ------------------------------------------------------------
   const clearFilters = () => {
-    setSelectedType('')
     setSelectedDept('')
     setSelectedStatus('')
     setSearchQuery('')
     setCurrentPage(1)
   }
 
-  const goToPage = (page: number) => {
+  const goToPage = (page: number) =>
     setCurrentPage(Math.max(1, Math.min(totalPages, page)))
-  }
 
-  // Helper to get badge color based on status
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'Received': return 'bg-blue-100 text-blue-700'
-      case 'Released': return 'bg-green-100 text-green-700'
-      case 'Approved': return 'bg-emerald-100 text-emerald-700'
-      case 'Denied': return 'bg-red-100 text-red-700'
-      case 'Pending': return 'bg-yellow-100 text-yellow-700'
-      default: return 'bg-gray-100 text-gray-700'
-    }
-  }
-
-  // ------------------------------------------------------------
-  // MODAL HANDLERS
-  // ------------------------------------------------------------
-  const handleClear = () => {
-    setActionTaken('')
-    setCorrOffice('')
-    setRemarks('')
-    setSubmitError('')
-  }
-
+  // ── Submit ────────────────────────────────────────────────────────────
   const handleSubmitClick = () => {
-    // Validation
-    if (!actionTaken) {
-      setSubmitError('Please select an action.')
-      return
-    }
-    if (!corrOffice) {
-      setSubmitError('Please select a corresponding office.')
-      return
-    }
-    if (!remarks.trim()) {
-      setSubmitError('Please write some remarks.')
-      return
-    }
-    // If validation passes, show confirmation modal
+    if (!actionTaken)    { setSubmitError('Please select an action.'); return }
+    if (!corrOffice)     { setSubmitError('Please select a corresponding office.'); return }
+    if (!remarks.trim()) { setSubmitError('Please write some remarks.'); return }
+    setSubmitError('')
     setShowConfirmModal(true)
   }
 
-  const handleConfirmSubmit = () => {
-    // Close confirmation modal, open success modal
-    setShowConfirmModal(false)
-    setShowSuccessModal(true)
-  }
+  const handleConfirmSubmit = async () => {
+    if (!selectedDoc) return
+    setSubmitLoading(true)
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) { setSubmitError('Not authenticated.'); return }
 
-  const handleCancelConfirm = () => {
-    setShowConfirmModal(false)
+      const { error: updateError } = await supabase
+        .from('documents')
+        .update({
+          status:            actionTaken,
+          current_office_id: corrOffice,
+          remarks:           remarks.trim(),
+          updated_at:        new Date().toISOString(),
+        })
+        .eq('id', selectedDoc.id)
+
+      if (updateError) {
+        setSubmitError('Failed to update document. Please try again.')
+        setShowConfirmModal(false)
+        return
+      }
+
+      await supabase.from('document_logs').insert([{
+        document_id:     selectedDoc.id,
+        performed_by:    authUser.id,
+        action:          'Status updated',
+        previous_status: selectedDoc.status,
+        new_status:      actionTaken,
+        office_id:       corrOffice,
+        remarks:         remarks.trim(),
+      }])
+
+      if (selectedDoc.submitted_by) {
+        await supabase.from('notifications').insert([{
+          user_id:     selectedDoc.submitted_by,
+          document_id: selectedDoc.id,
+          title:       'Document Status Updated',
+          message:     `Your document "${selectedDoc.title}" status has been updated to ${formatStatus(actionTaken)}.`,
+          is_read:     false,
+        }])
+      }
+
+      await fetchDocuments()
+      setShowConfirmModal(false)
+      setShowSuccessModal(true)
+    } catch (err) {
+      console.error(err)
+      setSubmitError('Something went wrong. Please try again.')
+      setShowConfirmModal(false)
+    } finally {
+      setSubmitLoading(false)
+    }
   }
 
   const handleSuccessOk = () => {
     setShowSuccessModal(false)
-    setSelectedDoc(null) // Close main modal
+    setSelectedDoc(null)
   }
+
+  const deptOptions   = departments.map(d => ({ label: d.name, value: d.name }))
+  const officeOptions = departments.map(d => ({ label: d.name, value: d.id  }))
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* HEADER – now with total under title */}
+
+      {/* Header */}
       <header className="bg-white border-b border-gray-200 px-8 py-4 shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-[#1a2e4a]">Document Progress</h1>
-            <div className="mt-1">
-              <span className="text-xs text-gray-400 font-medium">Total Documents:</span>
-              <span className="text-sm text-gray-700 ml-1">{filteredDocs.length}</span>
-            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Total: <span className="text-gray-700 font-medium">{filteredDocs.length}</span> documents
+            </p>
           </div>
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -275,99 +303,98 @@ export default function DocumentProgressPage() {
               type="text"
               placeholder="Search Document..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-                setCurrentPage(1)
-              }}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
               className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-200 w-56"
             />
           </div>
         </div>
       </header>
 
-      {/* BODY */}
+      {/* Body */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        {/* FILTER ROW */}
+
+        {/* Filters — Department + Status only */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex items-center gap-1 text-gray-600">
             <Filter className="w-4 h-4" />
             <span className="text-sm font-medium">Filter:</span>
           </div>
-
           <CustomSelect
-            options={documentTypes}
-            value={selectedType}
-            onChange={(val) => {
-              setSelectedType(val)
-              setCurrentPage(1)
-            }}
-            placeholder="Document Type"
-            minWidth="min-w-[150px]"
-          />
-
-          <CustomSelect
-            options={departments}
+            options={deptOptions}
             value={selectedDept}
-            onChange={(val) => {
-              setSelectedDept(val)
-              setCurrentPage(1)
-            }}
-            placeholder="Submitting Department"
-            minWidth="min-w-[160px]"
+            onChange={(val) => { setSelectedDept(val); setCurrentPage(1) }}
+            placeholder="Department"
+            minWidth="min-w-[180px]"
           />
-
           <CustomSelect
             options={statusOptions}
             value={selectedStatus}
-            onChange={(val) => {
-              setSelectedStatus(val)
-              setCurrentPage(1)
-            }}
+            onChange={(val) => { setSelectedStatus(val); setCurrentPage(1) }}
             placeholder="Status"
-            minWidth="min-w-[120px]"
+            minWidth="min-w-[140px]"
           />
-
-          {(selectedType || selectedDept || selectedStatus || searchQuery) && (
-            <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline ml-1 cursor-pointer">
-              Clear
+          {(selectedDept || selectedStatus || searchQuery) && (
+            <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline cursor-pointer">
+              Clear filters
             </button>
           )}
         </div>
 
-        {/* TABLE */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+        {fetchError && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
+            {fetchError}
+          </div>
+        )}
+
+        {/* Table — no Module column */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           <table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 border-b border-gray-100">
-              <tr className="text-gray-600 text-xs uppercase tracking-wide">
-                <th className="text-left px-3 py-2 font-semibold w-[30%]">Document Name</th>
-                <th className="text-left px-3 py-2 font-semibold w-[27%]">Document Type</th>
-                <th className="text-left px-3 py-2 font-semibold w-[24%]">Submitting Department</th>
-                <th className="text-left px-3 py-2 font-semibold w-[13%]">Date Received</th>
-                <th className="text-center px-3 py-2 font-semibold w-[18%]">Status</th>
+              <tr className="text-gray-500 text-xs uppercase tracking-wide">
+                <th className="text-left px-4 py-3 font-semibold w-[30%]">Document Name</th>
+                <th className="text-left px-4 py-3 font-semibold w-[25%]">Document Type</th>
+                <th className="text-left px-4 py-3 font-semibold w-[22%]">Department</th>
+                <th className="text-left px-4 py-3 font-semibold w-[12%]">Date</th>
+                <th className="text-center px-4 py-3 font-semibold w-[11%]">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {paginatedDocs.map((doc) => (
-                <tr
-                  key={doc.id}
-                  onClick={() => setSelectedDoc(doc)}
-                  className="hover:bg-blue-50/30 transition-colors cursor-pointer"
-                >
-                  <td className="px-3 py-2 text-gray-700 font-medium truncate align-middle">{doc.name}</td>
-                  <td className="px-3 py-2 text-gray-500 truncate align-middle">{doc.type}</td>
-                  <td className="px-3 py-2 text-gray-500 truncate align-middle">{doc.department}</td>
-                  <td className="px-3 py-2 text-gray-500 truncate align-middle">{doc.dateReceived}</td>
-                  <td className="px-3 py-2 align-middle text-center">
-                    <span className={`inline-flex items-center justify-center w-24 h-7 px-2 rounded-full text-xs font-medium whitespace-nowrap leading-5 ${getStatusBadgeColor(doc.status)}`}>
-                      {doc.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {paginatedDocs.length === 0 && (
+              {fetchLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-3 bg-gray-100 rounded animate-pulse" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : paginatedDocs.length > 0 ? (
+                paginatedDocs.map((doc) => (
+                  <tr
+                    key={doc.id}
+                    onClick={() => setSelectedDoc(doc)}
+                    className="hover:bg-blue-50/30 transition-colors cursor-pointer"
+                  >
+                    <td className="px-4 py-3.5 text-gray-800 font-medium truncate">{doc.title}</td>
+                    <td className="px-4 py-3.5 text-gray-500 truncate">
+                      {doc.document_type
+                        ? `${doc.document_type}${doc.document_type_detail ? ` — ${doc.document_type_detail}` : ''}`
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3.5 text-gray-500 truncate">{doc.departments?.name ?? '—'}</td>
+                    <td className="px-4 py-3.5 text-gray-500 truncate">{formatDate(doc.created_at)}</td>
+                    <td className="px-4 py-3.5 text-center">
+                      <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusBadgeColor(doc.status)}`}>
+                        {formatStatus(doc.status)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-gray-400 text-sm">
-                    No documents match your filters.
+                  <td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">
+                    No documents found.
                   </td>
                 </tr>
               )}
@@ -375,17 +402,17 @@ export default function DocumentProgressPage() {
           </table>
         </div>
 
-        {/* PAGINATION */}
-        {filteredDocs.length > 0 && (
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs text-gray-400 min-w-[180px]">
-              Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredDocs.length)} of {filteredDocs.length} active documents
+        {/* Pagination */}
+        {!fetchLoading && filteredDocs.length > 0 && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              Showing {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredDocs.length)} of {filteredDocs.length} documents
             </p>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-40"
               >
                 <ChevronLeft size={14} className="text-gray-500" />
               </button>
@@ -394,10 +421,7 @@ export default function DocumentProgressPage() {
                   key={page}
                   onClick={() => goToPage(page)}
                   className={`w-8 h-8 rounded-lg text-xs font-semibold transition cursor-pointer
-                    ${currentPage === page
-                      ? 'bg-[#1a2e4a] text-white'
-                      : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
-                    }`}
+                    ${currentPage === page ? 'bg-[#1a2e4a] text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                 >
                   {page}
                 </button>
@@ -405,7 +429,7 @@ export default function DocumentProgressPage() {
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-40"
               >
                 <ChevronRight size={14} className="text-gray-500" />
               </button>
@@ -414,142 +438,147 @@ export default function DocumentProgressPage() {
         )}
       </div>
 
-      {/* ============================================================
-          DOCUMENT DETAIL MODAL – with red borders on empty required fields after failed submit
-          ============================================================ */}
+      {/* ── Document Detail Modal ── */}
       {selectedDoc && (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
           onClick={() => setSelectedDoc(null)}
         >
-          {/* MODAL WIDTH – change max-w-2xl to adjust overall width (e.g., max-w-xl, max-w-3xl) */}
           <div
             className="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-gray-100"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header with title and close button */}
-            <div className="flex items-start justify-between px-4 pt-4 pb-1 border-b border-gray-100">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
               <div>
-                <h2 className="text-base font-semibold text-gray-800">{selectedDoc.name}</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{selectedDoc.type}</p>
+                <h2 className="text-base font-semibold text-gray-800">{selectedDoc.title}</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {selectedDoc.document_type}
+                  {selectedDoc.document_type_detail ? ` — ${selectedDoc.document_type_detail}` : ''}
+                </p>
               </div>
               <button
                 onClick={() => setSelectedDoc(null)}
-                className="p-1 rounded-lg hover:bg-gray-100 transition text-gray-400"
-                title="Close"
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Body – two‑column grid */}
-            <div className="px-4 pt-2 pb-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* LEFT COLUMN – description (no box) + optional preview button */}
-                <div className="space-y-2">
-                  {/* Description – scrollable, without border/background (clean look) */}
-                  <div className="max-h-40 overflow-y-auto min-h-[250px]">
-                    {selectedDoc.description ? (
-                      <p className="text-xs text-gray-700 leading-relaxed">{selectedDoc.description}</p>
-                    ) : (
-                      <p className="text-xs text-gray-400 italic">No description provided.</p>
-                    )}
+            {/* Modal Body */}
+            <div className="px-5 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                {/* Left */}
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</p>
+                    <div className="max-h-36 overflow-y-auto">
+                      {selectedDoc.description
+                        ? <p className="text-xs text-gray-700 leading-relaxed">{selectedDoc.description}</p>
+                        : <p className="text-xs text-gray-400 italic">No description provided.</p>
+                      }
+                    </div>
                   </div>
 
-                  {/* Preview Image Button – appears only if imageUrl exists, with eye icon */}
-                  {selectedDoc.imageUrl && (
-                    <button
-                      className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-xs text-gray-700 hover:bg-gray-200 transition"
-                      onClick={() => alert('Preview image – replace with actual viewer')}
-                    >
-                      <Eye size={16} className="text-gray-500" />
-                      <span>Preview Image</span>
-                    </button>
+                  {selectedDoc.file_url && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Attached File</p>
+                      <button
+                        onClick={handleViewFile}
+                        disabled={urlLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-xs text-gray-700 hover:bg-gray-200 transition disabled:opacity-60 cursor-pointer"
+                      >
+                        <Eye size={13} className="text-gray-500" />
+                        <span>{urlLoading ? 'Opening...' : (selectedDoc.file_name ?? 'View File')}</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 
-                {/* RIGHT COLUMN – metadata and dropdowns */}
+                {/* Right */}
                 <div className="space-y-3">
-                  {/* Metadata – each on its own line */}
-                  <div className="space-y-1">
-                    <div>
-                      <span className="text-xs font-medium text-gray-600">Submitting Department:</span>{' '}
-                      <span className="text-xs text-gray-800">{selectedDoc.department}</span>
+                  <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-500">Department</span>
+                      <span className="text-xs font-medium text-gray-800">{selectedDoc.departments?.name ?? '—'}</span>
                     </div>
-                    <div>
-                      <span className="text-xs font-medium text-gray-600">Submitted By:</span>{' '}
-                      <span className="text-xs text-gray-800">{selectedDoc.submittedBy}</span>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-500">Submitted By</span>
+                      <span className="text-xs font-medium text-gray-800">{selectedDoc.profiles?.full_name ?? '—'}</span>
                     </div>
-                    <div>
-                      <span className="text-xs font-medium text-gray-600">Date Received:</span>{' '}
-                      <span className="text-xs text-gray-800">{selectedDoc.dateReceived}</span>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-500">Current Office</span>
+                      <span className="text-xs font-medium text-gray-800">{selectedDoc.current_office?.name ?? '—'}</span>
                     </div>
-                    <div>
-                      <span className="text-xs font-medium text-gray-600">Last Update:</span>{' '}
-                      <span className="text-xs text-gray-800">{selectedDoc.lastUpdate}</span>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-500">Date Submitted</span>
+                      <span className="text-xs font-medium text-gray-800">{formatDate(selectedDoc.created_at)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-500">Last Updated</span>
+                      <span className="text-xs font-medium text-gray-800">{formatDate(selectedDoc.updated_at)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-500">Status</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeColor(selectedDoc.status)}`}>
+                        {formatStatus(selectedDoc.status)}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Action Taken dropdown – required */}
                   <div>
-                    <p className="text-xs font-medium text-gray-700 mb-1">Action Taken</p>
+                    <p className="text-xs font-medium text-gray-700 mb-1">Action Taken <span className="text-red-500">*</span></p>
                     <CustomSelect
                       options={actionOptions}
                       value={actionTaken}
                       onChange={setActionTaken}
-                      placeholder="Select action"
+                      placeholder="Select action..."
                       minWidth="w-full"
-                      error={submitError && !actionTaken}
+                      error={!!submitError && !actionTaken}
                     />
                   </div>
 
-                  {/* Corresponding Office dropdown – using shorter options list */}
                   <div>
-                    <p className="text-xs font-medium text-gray-700 mb-1">Corresponding Office</p>
+                    <p className="text-xs font-medium text-gray-700 mb-1">Corresponding Office <span className="text-red-500">*</span></p>
                     <CustomSelect
-                      options={correspondingOfficeOptions}
+                      options={officeOptions}
                       value={corrOffice}
                       onChange={setCorrOffice}
-                      placeholder="Select office"
+                      placeholder="Select office..."
                       minWidth="w-full"
-                      error={submitError && !corrOffice}
+                      error={!!submitError && !corrOffice}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Separator after columns */}
-              <hr className="border-gray-100 my-3" />
+              <hr className="border-gray-100 my-4" />
 
-              {/* Remarks with state – required */}
-              <div className="mb-3">
-                <p className="text-xs font-medium text-gray-700 mb-1">Remarks</p>
+              <div className="mb-4">
+                <p className="text-xs font-medium text-gray-700 mb-1">Remarks <span className="text-red-500">*</span></p>
                 <textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Please write some remarks...."
+                  placeholder="Write your remarks here..."
                   rows={2}
-                  className={`w-full border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none
-                    ${submitError && !remarks.trim() ? 'border-red-500' : 'border-gray-200'}`}
+                  className={`w-full border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none transition
+                    ${submitError && !remarks.trim() ? 'border-red-400 bg-red-50/30' : 'border-gray-200'}`}
                 />
               </div>
 
-              {/* Error message */}
-              {submitError && (
-                <p className="text-xs text-red-500 mb-2">{submitError}</p>
-              )}
+              {submitError && <p className="text-xs text-red-500 mb-3">{submitError}</p>}
 
-              {/* Buttons with handlers */}
               <div className="flex justify-end gap-2">
                 <button
-                  onClick={handleClear}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+                  onClick={() => { setActionTaken(''); setCorrOffice(''); setRemarks(''); setSubmitError('') }}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   Clear
                 </button>
                 <button
                   onClick={handleSubmitClick}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition cursor-pointer"
                 >
                   Submit
                 </button>
@@ -557,41 +586,42 @@ export default function DocumentProgressPage() {
             </div>
           </div>
 
-          {/* ============================================================
-              CONFIRMATION MODAL – appears after submit click
-              ============================================================ */}
+          {/* Confirm Modal */}
           {showConfirmModal && (
             <div
               className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] px-4"
-              onClick={handleCancelConfirm}
+              onClick={() => setShowConfirmModal(false)}
             >
               <div
-                className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-100 p-5"
+                className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-100 p-6"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h3 className="text-base font-semibold text-gray-800 mb-2">Confirm Submission</h3>
-                <p className="text-sm text-gray-600 mb-4">Are you sure you want to submit these remarks and actions?</p>
+                <h3 className="text-base font-semibold text-gray-800 mb-2">Confirm Action</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Are you sure you want to update this document status to{' '}
+                  <strong className="text-gray-800">{formatStatus(actionTaken)}</strong>?
+                </p>
+                {submitError && <p className="text-xs text-red-500 mb-3">{submitError}</p>}
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={handleCancelConfirm}
+                    onClick={() => setShowConfirmModal(false)}
                     className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirmSubmit}
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition"
+                    disabled={submitLoading}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition disabled:opacity-60"
                   >
-                    Confirm
+                    {submitLoading ? 'Saving...' : 'Confirm'}
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ============================================================
-              SUCCESS MODAL – appears after confirmation
-              ============================================================ */}
+          {/* Success Modal */}
           {showSuccessModal && (
             <div
               className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] px-4"
@@ -601,7 +631,13 @@ export default function DocumentProgressPage() {
                 className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 text-center"
                 onClick={(e) => e.stopPropagation()}
               >
-                <p className="text-sm text-gray-800 mb-4">Document has been submitted successfully.</p>
+                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">✅</span>
+                </div>
+                <p className="text-sm font-semibold text-gray-800 mb-2">Document Updated!</p>
+                <p className="text-xs text-gray-400 mb-5">
+                  Status changed to <strong>{formatStatus(actionTaken)}</strong> and the submitter has been notified.
+                </p>
                 <button
                   onClick={handleSuccessOk}
                   className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition cursor-pointer"

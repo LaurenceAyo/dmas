@@ -1,119 +1,246 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Search, ChevronLeft, ChevronRight, X } from 'lucide-react'
-import NotificationBell from '@/components/NotificationBell' // Adjust path if needed
+import { useState, useEffect, useCallback } from 'react'
+import { Search, ChevronLeft, ChevronRight, X, CheckCheck, Trash2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { getStatusBadgeColor, formatStatus, getStepperCircleColor } from '@/lib/utils/status'
 
-// ── Mock Notifications Data (Added missing metadata for the modal) ──
-const mockNotifications = [
-  { id: 1, status: 'In Process', documentName: 'Scholarship Grant Certificate', type: 'Financial Document', department: 'Supply Office', correspondingOffice: "Dean's Office", message: 'Your document is now Pending Review.', officeRemarks: 'Document received and is currently being reviewed by the supply officer.', clientAcknowledgement: 'Noted.', date: 'March 5, 2026', time: '10:30 A.M', read: false },
-  { id: 2, status: 'Approved', documentName: 'Leave of Absence', type: 'HR Document', department: 'HR Office', correspondingOffice: "Dean's Office", message: 'Your document has been Approved.', officeRemarks: 'Leave request approved for March 22-25.', clientAcknowledgement: '', date: 'March 5, 2026', time: '10:30 A.M', read: true },
-  { id: 3, status: 'Released', documentName: 'Procurement Request', type: 'Financial Document', department: 'BAC', correspondingOffice: "Supply Office", message: 'Your document is ready for Release.', officeRemarks: 'Monitors are ready for pickup.', clientAcknowledgement: 'Received the items in good condition.', date: 'March 5, 2026', time: '10:30 A.M', read: true },
-  { id: 4, status: 'Denied', documentName: 'Travel Order', type: 'Administrative', department: 'Dean Office', correspondingOffice: "Accounting", message: 'Your document has been Denied.', officeRemarks: 'Missing signatures from the department head.', clientAcknowledgement: '', date: 'March 5, 2026', time: '10:30 A.M', read: true },
-]
+// ── Types ─────────────────────────────────────────────────────────────────
+interface Notification {
+  id: string
+  title: string
+  message: string
+  is_read: boolean
+  created_at: string
+  document_id: string | null
+  documents: {
+    title: string
+    status: string
+    description: string | null
+    remarks: string | null
+    document_type: string | null
+    document_type_detail: string | null
+    initial_office: { name: string } | null
+    current_office: { name: string } | null
+    document_logs: {
+      id: string
+      action: string
+      new_status: string | null
+      previous_status: string | null
+      created_at: string
+      departments: { name: string } | null
+      profiles: { full_name: string } | null
+    }[]
+  } | null
+}
 
-// Generate more notifications to reach 20 for pagination testing
-for (let i = 5; i <= 20; i++) {
-  mockNotifications.push({
-    id: i,
-    status: i % 3 === 0 ? 'In Process' : 'Approved',
-    documentName: 'Scholarship Grant Certificate',
-    type: 'Financial Document',
-    department: 'Supply Office',
-    correspondingOffice: "Dean's Office",
-    message: i % 3 === 0 ? 'Your document is now Pending Review.' : 'Your document has been Approved.',
-    officeRemarks: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    clientAcknowledgement: '',
-    date: 'March 5, 2026',
-    time: '10:30 A.M',
-    read: i % 3 !== 0,
+// ── Helpers ───────────────────────────────────────────────────────────────
+const formatDate = (dateString: string) =>
+  new Date(dateString).toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric'
   })
-}
 
-// ── Stepper Logic Helper ──
-const getProgressSteps = (status) => {
-  const steps = ['Submitted', 'Under Review', 'For Recommendation', 'Approved', 'Released']
-  let currentIndex = 0
+const formatTime = (dateString: string) =>
+  new Date(dateString).toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit'
+  })
 
-  if (status === 'In Process' || status === 'Under Review') currentIndex = 1
-  else if (status === 'For Recommendation') currentIndex = 2
-  else if (status === 'Approved') currentIndex = 3
-  else if (status === 'Released') currentIndex = 4
-  else if (status === 'Denied') currentIndex = 1 // Stops at review if denied
-
-  return steps.map((label, index) => ({
-    label,
-    completed: index <= currentIndex,
-    active: index === currentIndex
-  }))
-}
-
+// ── Main Page ─────────────────────────────────────────────────────────────
 export default function InboxPage() {
-  const [notifications, setNotifications] = useState(mockNotifications)
-  const [activeFilter, setActiveFilter] = useState('all')
-  const [searchQuery, setSearchQuery] = useState('')
-  
-  // Modal State
-  const [selectedDoc, setSelectedDoc] = useState(null)
+  const supabase = createClient()
 
-  // Pagination States
-  const [currentPage, setCurrentPage] = useState(1)
+  // ── State ──────────────────────────────────────────────────────────────
+  const [notifications, setNotifications]   = useState<Notification[]>([])
+  const [currentUser, setCurrentUser]       = useState<{ full_name: string; department_name: string | null } | null>(null)
+  const [fetchLoading, setFetchLoading]     = useState(true)
+  const [fetchError, setFetchError]         = useState('')
+  const [activeFilter, setActiveFilter]     = useState('all')
+  const [searchQuery, setSearchQuery]       = useState('')
+  const [selectedDoc, setSelectedDoc]       = useState<Notification | null>(null)
+  const [currentPage, setCurrentPage]       = useState(1)
   const itemsPerPage = 10
 
-  // User info (mock data)
-  const userName = 'Jane Doe'
-  const userDepartment = 'Accounting Office'
+  // ── Fetch Current User ────────────────────────────────────────────────
+  const fetchCurrentUser = useCallback(async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
 
-  const unreadCount = notifications.filter(n => !n.read).length
-  const readCount = notifications.filter(n => n.read).length
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select(`
+        full_name,
+        departments ( name )
+      `)
+      .eq('id', authUser.id)
+      .single()
 
-  // Filter notifications
-  const filteredNotifications = notifications.filter(notif => {
-    const matchesSearch = 
-      notif.documentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      notif.message.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = 
-      activeFilter === 'all' || 
-      (activeFilter === 'unread' && !notif.read) ||
-      (activeFilter === 'read' && notif.read)
-    return matchesSearch && matchesFilter
-  })
+    if (profile) {
+      setCurrentUser({
+        full_name: profile.full_name,
+        department_name: (profile.departments as any)?.name ?? null,
+      })
+    }
+  }, [])
 
-  // Reset page when filters change
+  // ── Fetch Notifications ───────────────────────────────────────────────
+  const fetchNotifications = useCallback(async () => {
+    setFetchLoading(true)
+    setFetchError('')
+
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { setFetchLoading(false); return }
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .select(`
+        id,
+        title,
+        message,
+        is_read,
+        created_at,
+        document_id,
+        documents (
+          title,
+          status,
+          description,
+          remarks,
+          document_type,
+          document_type_detail,
+          initial_office:departments!documents_initial_office_id_fkey ( name ),
+          current_office:departments!documents_current_office_id_fkey ( name ),
+          document_logs (
+            id,
+            action,
+            new_status,
+            previous_status,
+            created_at,
+            departments!document_logs_office_id_fkey ( name ),
+            profiles!document_logs_performed_by_fkey ( full_name )
+          )
+        )
+      `)
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Fetch error:', error.message)
+      setFetchError('Failed to load notifications. Please refresh.')
+    } else {
+      // Sort document_logs inside each notification ascending
+      const sorted = (data as any[]).map(n => ({
+        ...n,
+        documents: n.documents ? {
+          ...n.documents,
+          document_logs: (n.documents.document_logs || []).sort(
+            (a: any, b: any) =>
+              new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          )
+        } : null
+      }))
+      setNotifications(sorted)
+    }
+
+    setFetchLoading(false)
+  }, [])
+
   useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, activeFilter])
+    fetchCurrentUser()
+    fetchNotifications()
+  }, [fetchCurrentUser, fetchNotifications])
 
-  // Pagination Math
-  const totalPages = Math.max(1, Math.ceil(filteredNotifications.length / itemsPerPage))
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedNotifications = filteredNotifications.slice(startIndex, startIndex + itemsPerPage)
+  useEffect(() => { setCurrentPage(1) }, [searchQuery, activeFilter])
 
-  const goToPage = (page) => {
-    setCurrentPage(Math.max(1, Math.min(totalPages, page)))
+  // ── Mark as Read ──────────────────────────────────────────────────────
+  const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id)
+    setNotifications(prev =>
+      prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+    )
   }
 
-  // Status badge color
-  const getStatusBadgeColor = (status) => {
-    switch (status) {
-      case 'In Process': return 'bg-blue-100 text-blue-700 border-blue-200'
-      case 'Approved':   return 'bg-green-100 text-green-700 border-green-200'
-      case 'Released':   return 'bg-cyan-100 text-cyan-700 border-cyan-200'
-      case 'Denied':     return 'bg-red-100 text-red-700 border-red-200'
-      default:           return 'bg-gray-100 text-gray-700 border-gray-200'
+  // ── Mark All as Read ──────────────────────────────────────────────────
+  const handleMarkAllAsRead = async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', authUser.id)
+      .eq('is_read', false)
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+  }
+
+  // ── Delete Notification ───────────────────────────────────────────────
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    await supabase.from('notifications').delete().eq('id', id)
+    setNotifications(prev => prev.filter(n => n.id !== id))
+    if (selectedDoc?.id === id) setSelectedDoc(null)
+  }
+
+  // ── Open Notification (mark as read automatically) ────────────────────
+  const handleOpenNotification = async (notif: Notification) => {
+    setSelectedDoc(notif)
+    if (!notif.is_read) {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notif.id)
+      setNotifications(prev =>
+        prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n)
+      )
     }
   }
 
+  // ── Filter ────────────────────────────────────────────────────────────
+  const filteredNotifications = notifications.filter(notif => {
+    const matchesSearch =
+      (notif.documents?.title ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      notif.message.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesFilter =
+      activeFilter === 'all' ||
+      (activeFilter === 'unread' && !notif.is_read) ||
+      (activeFilter === 'read'   && notif.is_read)
+    return matchesSearch && matchesFilter
+  })
+
+  const unreadCount = notifications.filter(n => !n.is_read).length
+  const readCount   = notifications.filter(n => n.is_read).length
+
+  // ── Pagination ────────────────────────────────────────────────────────
+  const totalPages    = Math.max(1, Math.ceil(filteredNotifications.length / itemsPerPage))
+  const startIndex    = (currentPage - 1) * itemsPerPage
+  const paginatedNotifications = filteredNotifications.slice(startIndex, startIndex + itemsPerPage)
+  const goToPage = (page: number) => setCurrentPage(Math.max(1, Math.min(totalPages, page)))
+
+  // ── JSX ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white">
-      
-      {/* ── HEADER ── */}
+
+      {/* Header */}
       <header className="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between shrink-0 z-20">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Hi, {userName}!</h1>
-          <p className="text-sm text-gray-500">{userDepartment}</p>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Hi, {currentUser?.full_name ?? '...'}!
+          </h1>
+          <p className="text-sm text-gray-500">
+            {currentUser?.department_name ?? ''}
+          </p>
         </div>
         <div className="flex items-center gap-3">
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllAsRead}
+              className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+            >
+              <CheckCheck size={14} />
+              Mark all as read
+            </button>
+          )}
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -121,103 +248,118 @@ export default function InboxPage() {
               placeholder="Search Document..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-64 transition-all"
+              className="pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-64"
             />
           </div>
         </div>
       </header>
 
-      {/* ── BODY ── */}
+      {/* Body */}
       <div className="flex-1 flex flex-col overflow-hidden px-8 py-6 bg-gray-50">
-        
-        {/* Filter Tabs (Shrink-0 prevents squishing) */}
+
+        {/* Filter Tabs */}
         <div className="flex items-center gap-3 mb-6 shrink-0">
-          <button
-            onClick={() => setActiveFilter('all')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-              activeFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <span className={`flex items-center justify-center w-6 h-6 rounded text-xs font-bold ${
-              activeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
-            }`}>
-              {notifications.length}
-            </span>
-            All
-          </button>
-
-          <button
-            onClick={() => setActiveFilter('unread')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-              activeFilter === 'unread' ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <span className={`flex items-center justify-center w-6 h-6 rounded text-xs font-bold ${
-              activeFilter === 'unread' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
-            }`}>
-              {unreadCount}
-            </span>
-            Unread
-          </button>
-
-          <button
-            onClick={() => setActiveFilter('read')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${
-              activeFilter === 'read' ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <span className={`flex items-center justify-center w-6 h-6 rounded text-xs font-bold ${
-              activeFilter === 'read' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
-            }`}>
-              {readCount}
-            </span>
-            Read
-          </button>
+          {[
+            { key: 'all',    label: 'All',    count: notifications.length },
+            { key: 'unread', label: 'Unread', count: unreadCount          },
+            { key: 'read',   label: 'Read',   count: readCount            },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveFilter(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer
+                ${activeFilter === tab.key
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+                }`}
+            >
+              <span className={`flex items-center justify-center w-6 h-6 rounded text-xs font-bold
+                ${activeFilter === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                {tab.count}
+              </span>
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* ── Table Container (Handles Flex & Overflow) ── */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col overflow-hidden mb-0">
-          
-          {/* Inner Scrollable Table */}
-          <div className="flex-1 overflow-auto scrollbar-thin scrollbar-thumb-gray-200">
+        {fetchError && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">
+            {fetchError}
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-auto">
             <table className="w-full text-sm text-left">
               <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Status</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Document Name</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Message</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Date</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">Status</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">Document Name</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">Message</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {paginatedNotifications.length > 0 ? (
+                {fetchLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 5 }).map((_, j) => (
+                        <td key={j} className="px-6 py-4">
+                          <div className="h-3 bg-gray-100 rounded animate-pulse" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : paginatedNotifications.length > 0 ? (
                   paginatedNotifications.map((notif) => (
                     <tr
                       key={notif.id}
-                      onClick={() => setSelectedDoc(notif)} // Opens the Tracking Modal
-                      className={`hover:bg-gray-50 transition-colors cursor-pointer group ${
-                        !notif.read ? 'bg-blue-50/40' : ''
-                      }`}
+                      onClick={() => handleOpenNotification(notif)}
+                      className={`hover:bg-gray-50 transition-colors cursor-pointer group
+                        ${!notif.is_read ? 'bg-blue-50/40' : ''}`}
                     >
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider border ${getStatusBadgeColor(notif.status)}`}>
-                          {notif.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {!notif.is_read && (
+                            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                          )}
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider border
+                            ${getStatusBadgeColor(notif.documents?.status ?? '')}`}>
+                            {formatStatus(notif.documents?.status ?? '')}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-gray-800 font-semibold group-hover:text-blue-600 transition-colors">
-                        {notif.documentName}
+                        {notif.documents?.title ?? notif.title}
                       </td>
                       <td className="px-6 py-4 text-gray-600">{notif.message}</td>
                       <td className="px-6 py-4 text-gray-500">
-                        <div className="font-medium text-gray-700">{notif.date}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{notif.time}</div>
+                        <div className="font-medium text-gray-700">{formatDate(notif.created_at)}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{formatTime(notif.created_at)}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          {!notif.is_read && (
+                            <button
+                              onClick={(e) => handleMarkAsRead(notif.id, e)}
+                              title="Mark as read"
+                              className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                            >
+                              <CheckCheck size={15} />
+                            </button>
+                          )}
+                      
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                      No Relevant Notifications found.
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                      {notifications.length === 0
+                        ? 'No notifications yet.'
+                        : 'No notifications match your filter.'}
                     </td>
                   </tr>
                 )}
@@ -225,39 +367,27 @@ export default function InboxPage() {
             </table>
           </div>
 
-          {/* Pagination Footer (Locked to bottom) */}
+          {/* Pagination Footer */}
           <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100 gap-4 bg-white">
             <p className="text-sm text-gray-600">
               Showing <span className="font-semibold">{filteredNotifications.length === 0 ? 0 : startIndex + 1}</span> to{' '}
               <span className="font-semibold">{Math.min(startIndex + itemsPerPage, filteredNotifications.length)}</span> of{' '}
-              <span className="font-semibold">{filteredNotifications.length}</span> documents
+              <span className="font-semibold">{filteredNotifications.length}</span> notifications
             </p>
             <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
+              <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 transition disabled:opacity-50 cursor-pointer">
                 <ChevronLeft size={16} className="text-gray-600" />
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => goToPage(page)}
-                  className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-bold transition cursor-pointer ${
-                    currentPage === page
-                      ? 'bg-[#1a2e4a] text-white shadow-md'
-                      : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
+                <button key={page} onClick={() => goToPage(page)}
+                  className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-bold transition cursor-pointer
+                    ${currentPage === page ? 'bg-[#1a2e4a] text-white shadow-md' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'}`}>
                   {page}
                 </button>
               ))}
-              <button
-                onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages || totalPages === 0}
-                className="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
+              <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages || totalPages === 0}
+                className="p-1.5 rounded-lg border border-gray-300 hover:bg-gray-100 transition disabled:opacity-50 cursor-pointer">
                 <ChevronRight size={16} className="text-gray-600" />
               </button>
             </div>
@@ -265,113 +395,127 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {/* ── MODAL: Document Tracking Details ── */}
+      {/* ── Modal: Document Tracking Details ── */}
       {selectedDoc && (
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 animate-in fade-in duration-200"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
           onClick={() => setSelectedDoc(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-100 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-100 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 bg-slate-50/50">
               <h2 className="text-lg font-bold text-gray-800">Document Tracking Details</h2>
-              <button
-                onClick={() => setSelectedDoc(null)}
-                className="p-1.5 rounded-lg hover:bg-gray-200 transition text-gray-400 cursor-pointer"
-              >
+              <button onClick={() => setSelectedDoc(null)} className="p-1.5 rounded-lg hover:bg-gray-200 transition text-gray-400 cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
-            {/* Progress Tracker Stepper */}
-            {/* Progress Tracker Stepper */}
-            <div className="px-8 py-8 border-b border-gray-100">
-              <div className="relative flex items-start justify-between px-2 sm:px-8">
-                {getProgressSteps(selectedDoc.status).map((step, index, arr) => (
-                  <div key={index} className="flex flex-col items-center relative" style={{ flex: 1 }}>
-                    
-                    {/* 💡 FIX: Changed -z-10 to z-0 so it doesn't hide behind the modal background */}
-                    {index < arr.length - 1 && (
-                      <div
-                        className={`absolute top-3.5 left-1/2 w-full h-[3px] z-0 transition-colors duration-300 ${
-                          arr[index + 1].completed ? 'bg-green-500' : 'bg-gray-200'
-                        }`}
-                      />
-                    )}
+            {/* Dynamic Stepper from document_logs */}
+            <div className="px-6 py-6 border-b border-gray-100 overflow-x-auto">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Document Journey</p>
+              <div className="relative flex items-start gap-0 min-w-max">
+                {(() => {
+                  const logs = selectedDoc.documents?.document_logs ?? []
+                  const steps = [
+                    {
+                      label: 'Submitted',
+                      sublabel: selectedDoc.documents?.initial_office?.name ?? '',
+                      status: 'submitted',
+                    },
+                    ...logs.map((log) => ({
+                      label: log.departments?.name ?? log.action,
+                      sublabel: formatStatus(log.new_status ?? ''),
+                      status: log.new_status ?? '',
+                    }))
+                  ]
 
-                    {/* Circle Indicator (Stays z-10 to sit on top of the line) */}
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 relative z-10 transition-colors duration-300 ${
-                        step.completed
-                          ? 'bg-green-500 border-green-500 shadow-[0_0_0_4px_rgba(34,197,94,0.2)]'
-                          : 'bg-white border-gray-300'
-                      }`}
-                    />
-
-                    {/* Step Label */}
-                    <p
-                      className={`text-[11px] font-bold mt-4 text-center leading-tight uppercase tracking-wider ${
-                        step.active ? 'text-gray-900' : (step.completed ? 'text-gray-600' : 'text-gray-400')
-                      }`}
-                      style={{ maxWidth: '90px' }}
-                    >
-                      {step.label}
-                    </p>
-                  </div>
-                ))}
+                  return steps.map((step, index) => (
+                    <div key={index} className="flex items-start relative" style={{ minWidth: '90px', flex: 1 }}>
+                      {index < steps.length - 1 && (
+                        <div className="absolute top-3.5 left-1/2 w-full h-[3px] bg-blue-200 z-0" />
+                      )}
+                      <div className="flex flex-col items-center w-full relative z-10">
+                        <div className={`w-7 h-7 rounded-full border-2 shrink-0 ${getStepperCircleColor(step.status)}`} />
+                        <p className="text-[10px] font-bold mt-2 text-center uppercase tracking-wide text-gray-700 leading-tight px-1" style={{ maxWidth: '85px' }}>
+                          {step.label}
+                        </p>
+                        {step.sublabel && step.status !== 'submitted' && (
+                          <span className={`mt-1 inline-flex px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${getStatusBadgeColor(step.status)}`}>
+                            {step.sublabel}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
             </div>
 
-            {/* Document Metadata Grid */}
+            {/* Document Metadata */}
             <div className="px-8 py-6 grid grid-cols-1 sm:grid-cols-2 gap-y-5 gap-x-8 border-b border-gray-100">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Document Name</p>
-                <p className="text-sm font-semibold text-gray-800">{selectedDoc.documentName}</p>
+                <p className="text-sm font-semibold text-gray-800">{selectedDoc.documents?.title ?? '—'}</p>
               </div>
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Document Type</p>
-                <p className="text-sm font-semibold text-gray-800">{selectedDoc.type || 'N/A'}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {selectedDoc.documents?.document_type ?? '—'}
+                  {selectedDoc.documents?.document_type_detail ? ` — ${selectedDoc.documents.document_type_detail}` : ''}
+                </p>
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Submitting Office</p>
-                <p className="text-sm font-semibold text-gray-800">{selectedDoc.department || 'N/A'}</p>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Submitted To</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {selectedDoc.documents?.initial_office?.name ?? '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Current Office</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {selectedDoc.documents?.current_office?.name ?? '—'}
+                </p>
               </div>
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date Submitted</p>
-                <p className="text-sm font-semibold text-gray-800">{selectedDoc.date}</p>
+                <p className="text-sm font-semibold text-gray-800">{formatDate(selectedDoc.created_at)}</p>
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Corresponding office</p>
-                <p className="text-sm font-semibold text-gray-800">{selectedDoc.correspondingOffice || 'N/A'}</p>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Current Status</p>
+                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(selectedDoc.documents?.status ?? '')}`}>
+                  {formatStatus(selectedDoc.documents?.status ?? '')}
+                </span>
               </div>
             </div>
 
-            {/* Office Remarks Box */}
+            {/* Office Remarks */}
             <div className="px-8 py-6 border-b border-gray-100">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Office Remarks</h3>
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-                <p className="text-sm text-gray-700 leading-relaxed">
-                  {selectedDoc.officeRemarks || 'No remarks provided.'}
-                </p>
+              <div className={`rounded-xl p-4 border text-sm leading-relaxed
+                ${selectedDoc.documents?.status === 'denied'
+                  ? 'bg-red-50 border-red-100 text-red-700'
+                  : 'bg-gray-50 border-gray-100 text-gray-700'
+                }`}>
+                {selectedDoc.documents?.remarks
+                  ? selectedDoc.documents.remarks
+                  : <span className="italic text-gray-400">No remarks provided yet.</span>
+                }
               </div>
             </div>
 
-            {/* Client Acknowledgement Box */}
+            {/* Notification Message */}
             <div className="px-8 py-6 pb-8">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Client Acknowledgement</h3>
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 min-h-[60px] flex items-center">
-                <p className="text-sm text-gray-700">
-                  {selectedDoc.clientAcknowledgement || 'Awaiting acknowledgement...'}
-                </p>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Notification</h3>
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 min-h-[60px]">
+                <p className="text-sm text-blue-700">{selectedDoc.message}</p>
               </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   )
 }
