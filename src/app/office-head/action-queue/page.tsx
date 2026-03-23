@@ -105,7 +105,6 @@ const statusFilterOptions = [
   { label: 'Received',         value: 'in_process'           },
   { label: 'Approved',         value: 'approved'             },
   { label: 'Pending Approval', value: 'recommended_approval' },
-  { label: 'Released',         value: 'released'             },
   { label: 'Denied',           value: 'denied'               },
 ]
 
@@ -185,6 +184,7 @@ export default function ActionQueuePage() {
       `)
       .eq('module_type', 'process_routing')
       .eq('current_office_id', currentUser.department_id)
+      .neq('status', 'released') 
       .order('created_at', { ascending: false })
 
     if (error) {

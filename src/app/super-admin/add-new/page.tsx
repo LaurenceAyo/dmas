@@ -311,7 +311,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
           document_type_detail: finalDocumentTypeDetail,
           description:          formData.documentDescription,
           module_type:          'process_routing',
-          status:               'pending',
+          status:               'in_process',
           submitted_by:         finalSubmittedById,
           department_id:        finalDepartmentId,
           current_office_id:    formData.correspondingOffice,
@@ -347,6 +347,24 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
           sequence_order: 1,
           status:         'pending',
           received_at:    new Date().toISOString(),
+        }])
+        //Insert initial document log
+        await supabase.from('document_logs').insert([{
+          document_id:     insertData.id,
+          performed_by:    authUser.id,
+          action:          'Document received',
+          previous_status: null,
+          new_status:      'in_process',
+          office_id:       formData.correspondingOffice,
+          remarks:         'Document received and entered into the system.',
+        }])
+        // ← Add this: Notify the submitter
+        await supabase.from('notifications').insert([{
+          user_id:     finalSubmittedById,
+          document_id: insertData.id,
+          title:       'Document Received',
+          message:     `Your document "${formData.documentName}" has been received and is now being processed.`,
+          is_read:     false,
         }])
       }
 

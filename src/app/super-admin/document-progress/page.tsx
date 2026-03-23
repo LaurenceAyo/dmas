@@ -95,7 +95,6 @@ const statusOptions = [
   { label: 'Approved',        value: 'approved'             },
   { label: 'Pending Approval',value: 'recommended_approval' },
   { label: 'Denied',          value: 'denied'               },
-  { label: 'Released',        value: 'released'             },
 ]
 
 const actionOptions = [
@@ -146,6 +145,7 @@ export default function DocumentProgressPage() {
         current_office:departments!documents_current_office_id_fkey ( name )
       `)
       .eq('module_type', 'process_routing')
+      .neq('status', 'released')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -171,8 +171,8 @@ export default function DocumentProgressPage() {
 
   useEffect(() => {
     if (selectedDoc) {
-      setActionTaken('')
-      setCorrOffice('')
+      setActionTaken(selectedDoc.status) // ← pre-select current status
+      setCorrOffice(selectedDoc.current_office_id ?? '')
       setRemarks('')
       setSubmitError('')
       setShowConfirmModal(false)
