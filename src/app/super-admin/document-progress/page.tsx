@@ -259,16 +259,27 @@ export default function DocumentProgressPage() {
       if (logError) console.error('Log insert failed:', logError.message)
 
       if (selectedDoc.submitted_by) {
-        await sendAllNotifications({
-          documentId:        selectedDoc.id,
-          documentName:      selectedDoc.title,
-          documentType:      selectedDoc.document_type ?? '',
-          action:            actionTaken as NotificationAction,
-          clientId:          selectedDoc.submitted_by,
-          sendingOfficeId:   authUser.id,
-          receivingOfficeId: corrOffice,
-          remarks:           remarks.trim(),
-        })
+        const actionMap: Record<string, NotificationAction> = {
+          'in_process':           'document_received',
+          'approved':             'document_approved',
+          'recommended_approval': 'document_approved',
+          'denied':               'document_denied',
+          'released':             'document_released',
+          'forwarded':            'document_forwarded',
+        }
+        const mappedAction = actionMap[actionTaken]
+        if (mappedAction) {
+          await sendAllNotifications({
+            documentId:        selectedDoc.id,
+            documentName:      selectedDoc.title,
+            documentType:      selectedDoc.document_type ?? '',
+            action:            mappedAction,
+            clientId:          selectedDoc.submitted_by,
+            sendingOfficeId:   authUser.id,
+            receivingOfficeId: corrOffice,
+            remarks:           remarks.trim(),
+          })
+        }
       }
 
       await fetchDocuments()
