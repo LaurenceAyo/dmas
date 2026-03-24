@@ -86,7 +86,7 @@ export default function ProfilePage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
 
-  // Fetch departments
+  // Fetch departments (still needed to display department name)
   useEffect(() => {
     const fetchDepartments = async () => {
       const { data, error } = await supabase
@@ -179,7 +179,7 @@ export default function ProfilePage() {
       full_name: fullName,
       email: editForm.email,
       phone: editForm.phone,
-      department_id: editForm.departmentId === '' ? null : editForm.departmentId,
+      // department_id is NOT updated here – only super-admin can change it
     }
 
     const { error } = await supabase
@@ -201,7 +201,7 @@ export default function ProfilePage() {
       lastName: editForm.lastName,
       email: editForm.email,
       phone: editForm.phone,
-      departmentId: editForm.departmentId,
+      // department stays the same
     })
     setIsEditing(false)
     setShowSuccessModal(true)
@@ -220,12 +220,19 @@ export default function ProfilePage() {
     setEditForm({ ...editForm, [e.target.name]: e.target.value })
   }
 
-  const handleDepartmentChange = (val: string) => {
-    setEditForm({ ...editForm, departmentId: val })
-  }
-
   const fullName = user ? `${user.firstName} ${user.lastName}` : ''
   const departmentName = departments.find(d => d.id === user?.departmentId)?.name || (user?.departmentId ? 'Unknown' : 'Not assigned')
+
+  // While loading, show a simple spinner (no text)
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden bg-gray-50/50">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50/50">
@@ -251,9 +258,7 @@ export default function ProfilePage() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-30 py-10">
-        {loading ? (
-          <div className="text-center py-12 text-gray-500">Loading profile...</div>
-        ) : error ? (
+        {error ? (
           <div className="text-center py-12 text-red-500">{error}</div>
         ) : (
           <div className="max-w-9xl mx-auto">
@@ -313,6 +318,13 @@ export default function ProfilePage() {
                               onChange={handleChange}
                               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
                             />
+                          </div>
+                          {/* Department shown as read‑only text */}
+                          <div>
+                            <label className="text-xs text-gray-500 block mb-1">Department</label>
+                            <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-700">
+                              {departmentName}
+                            </div>
                           </div>
                         </>
                       ) : (
@@ -384,20 +396,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Department Edit (if editing) */}
-                {isEditing && (
-                  <div className="mt-2 border border-gray-100 rounded-xl p-4 bg-gray-50/30 overflow-visible">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Department</h3>
-                    <CustomSelect
-                      options={departments.map(d => ({ label: d.name, value: d.id }))}
-                      value={editForm.departmentId}
-                      onChange={handleDepartmentChange}
-                      placeholder="Select department"
-                      minWidth="w-full md:w-95"
-                    />
-                  </div>
-                )}
 
                 {/* Edit mode buttons */}
                 {isEditing && (
