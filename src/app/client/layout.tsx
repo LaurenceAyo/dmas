@@ -12,7 +12,7 @@ const navItems = [
   { label: 'My Documents', href: '/client/documents', icon: FileText },
   { label: 'Inbox',        href: '/client/inbox',        icon: Inbox    },
   { label: 'Profile',      href: '/client/profile',      icon: User     },
-  { label: 'About', href: '/super-admin/about', icon: Info},
+  { label: 'About', href: '/client/about', icon: Info},
 ]
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {

@@ -12,7 +12,7 @@ const navItems = [
     { label: 'Action Queue', href: '/office-head/action-queue', icon: ClipboardList },
     { label: 'Activity Log', href: '/office-head/activity-log', icon: Activity },
     { label: 'Profile', href: '/office-head/profile', icon: User },
-    { label: 'About',             href: '/super-admin/about',              icon: Info          },
+    { label: 'About',             href: '/office-head/about',              icon: Info          },
 ]
 
 export default function OfficeHeadLayout({ children }: { children: React.ReactNode }) {

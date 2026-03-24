@@ -181,7 +181,6 @@ function ArchiveDocumentForm() {
     setLoading(true)
 
     try {
-      // Get current logged-in user
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) {
         setError("Not authenticated. Please log in again.")
@@ -189,11 +188,10 @@ function ArchiveDocumentForm() {
         return
       }
 
-      let fileUrl  = null
+      let fileUrl = null
       let fileName = null
       let fileSize = null
 
-      // Upload file to Supabase Storage if attached
       if (file) {
         const filePath = `${authUser.id}/${Date.now()}_${file.name}`
         const { error: uploadError } = await supabase.storage
@@ -206,17 +204,16 @@ function ArchiveDocumentForm() {
           return
         }
 
-        fileUrl  = filePath   // store path, not public URL
+        fileUrl = filePath
         fileName = file.name
         fileSize = file.size
       }
 
-      // Determine final document type
       const finalDocumentType = formData.documentType === "others"
         ? "Others"
         : formData.documentType
 
-      // Insert into Supabase
+      // Insert into Supabase with archived_at
       const { error: insertError } = await supabase
         .from("documents")
         .insert([{
@@ -228,6 +225,7 @@ function ArchiveDocumentForm() {
           status:               'released',
           submitted_by:         authUser.id,
           is_archived:          true,
+          archived_at:          new Date().toISOString(),   // 👈 ADDED
           file_url:             fileUrl,
           file_name:            fileName,
           file_size:            fileSize,
@@ -254,7 +252,7 @@ function ArchiveDocumentForm() {
   return (
     <div className="overflow-y-auto flex-1 p-8">
 
-      {/* ── Confirm Modal ── */}
+      {/* Confirm Modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-8 w-96 relative">
@@ -287,7 +285,7 @@ function ArchiveDocumentForm() {
         </div>
       )}
 
-      {/* ── Success Modal ── */}
+      {/* Success Modal */}
       {showSuccess && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-8 w-80 text-center">
@@ -308,7 +306,7 @@ function ArchiveDocumentForm() {
         </div>
       )}
 
-      {/* ── Breadcrumbs ── */}
+      {/* Breadcrumbs */}
       <nav className="flex items-center space-x-1 text-sm text-gray-600 mb-6">
         <Link href="/super-admin/dashboard" className="flex items-center hover:text-gray-900 transition-colors">
           <Home className="h-4 w-4" />
@@ -321,7 +319,7 @@ function ArchiveDocumentForm() {
         <span className="text-gray-900 font-medium">Archive Document</span>
       </nav>
 
-      {/* ── Form Card ── */}
+      {/* Form Card */}
       <div className="mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">
 
         {/* Document Name */}
