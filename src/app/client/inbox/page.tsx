@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Search, ChevronLeft, ChevronRight, X, CheckCheck, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getStatusBadgeColor, formatStatus, getStepperCircleColor } from '@/lib/utils/status'
@@ -47,17 +47,17 @@ const formatTime = (dateString: string) =>
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export default function InboxPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   // ── State ──────────────────────────────────────────────────────────────
-  const [notifications, setNotifications]   = useState<Notification[]>([])
-  const [currentUser, setCurrentUser]       = useState<{ full_name: string; department_name: string | null } | null>(null)
-  const [fetchLoading, setFetchLoading]     = useState(true)
-  const [fetchError, setFetchError]         = useState('')
-  const [activeFilter, setActiveFilter]     = useState('all')
-  const [searchQuery, setSearchQuery]       = useState('')
-  const [selectedDoc, setSelectedDoc]       = useState<Notification | null>(null)
-  const [currentPage, setCurrentPage]       = useState(1)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [currentUser, setCurrentUser] = useState<{ full_name: string; department_name: string | null } | null>(null)
+  const [fetchLoading, setFetchLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
+  const [activeFilter, setActiveFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedDoc, setSelectedDoc] = useState<Notification | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
   // ── Fetch Current User ────────────────────────────────────────────────
@@ -204,16 +204,16 @@ export default function InboxPage() {
     const matchesFilter =
       activeFilter === 'all' ||
       (activeFilter === 'unread' && !notif.is_read) ||
-      (activeFilter === 'read'   && notif.is_read)
+      (activeFilter === 'read' && notif.is_read)
     return matchesSearch && matchesFilter
   })
 
   const unreadCount = notifications.filter(n => !n.is_read).length
-  const readCount   = notifications.filter(n => n.is_read).length
+  const readCount = notifications.filter(n => n.is_read).length
 
   // ── Pagination ────────────────────────────────────────────────────────
-  const totalPages    = Math.max(1, Math.ceil(filteredNotifications.length / itemsPerPage))
-  const startIndex    = (currentPage - 1) * itemsPerPage
+  const totalPages = Math.max(1, Math.ceil(filteredNotifications.length / itemsPerPage))
+  const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedNotifications = filteredNotifications.slice(startIndex, startIndex + itemsPerPage)
   const goToPage = (page: number) => setCurrentPage(Math.max(1, Math.min(totalPages, page)))
 
@@ -260,9 +260,9 @@ export default function InboxPage() {
         {/* Filter Tabs */}
         <div className="flex items-center gap-3 mb-6 shrink-0">
           {[
-            { key: 'all',    label: 'All',    count: notifications.length },
-            { key: 'unread', label: 'Unread', count: unreadCount          },
-            { key: 'read',   label: 'Read',   count: readCount            },
+            { key: 'all', label: 'All', count: notifications.length },
+            { key: 'unread', label: 'Unread', count: unreadCount },
+            { key: 'read', label: 'Read', count: readCount },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -349,7 +349,7 @@ export default function InboxPage() {
                               <CheckCheck size={15} />
                             </button>
                           )}
-                      
+
                         </div>
                       </td>
                     </tr>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Search, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getStatusBadgeColor, formatStatus, getStepperCircleColor } from '@/lib/utils/status'
@@ -120,7 +120,7 @@ const formatDateShort = (dateString: string) =>
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export default function ActivityLogPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   // ── State ──────────────────────────────────────────────────────────────
   const [documents, setDocuments]       = useState<DocumentWithLogs[]>([])

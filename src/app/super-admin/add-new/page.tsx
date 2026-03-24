@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { ChevronRight, Home, ChevronDown, FileText, X } from "lucide-react"
 import Link from "next/link"
+import { sendAllNotifications } from '@/lib/notifications/send-all-notifications'
 
 // ── Custom Select Component ───────────────────────────────────────────────
 function CustomSelect({
@@ -94,16 +95,16 @@ interface UserProfile {
 // ── Document Type Config ──────────────────────────────────────────────────
 const DOCUMENT_TYPE_OPTIONS = [
   { label: "Communication Letters", value: "Communication Letters" },
-  { label: "Proposal",              value: "Proposal"              },
-  { label: "Vouchers",              value: "Vouchers"              },
-  { label: "Others (Specify)",      value: "others"                },
+  { label: "Proposal", value: "Proposal" },
+  { label: "Vouchers", value: "Vouchers" },
+  { label: "Others (Specify)", value: "others" },
 ]
 
 const DETAIL_PLACEHOLDERS: Record<string, string> = {
   "Communication Letters": "e.g. Memorandum, Endorsement Letter...",
-  "Proposal":              "e.g. Budget Proposal, Project Proposal...",
-  "Vouchers":              "e.g. Disbursement Voucher, Journal Voucher...",
-  "others":                "Please specify the document type...",
+  "Proposal": "e.g. Budget Proposal, Project Proposal...",
+  "Vouchers": "e.g. Disbursement Voucher, Journal Voucher...",
+  "others": "Please specify the document type...",
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────
@@ -135,10 +136,10 @@ export default function AddNewPage() {
             className="flex flex-col items-center justify-center w-36 h-36 rounded-xl bg-[#367588] text-white cursor-pointer transition-all"
           >
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="12" y1="11" x2="12" y2="17"/>
-              <line x1="9" y1="14" x2="15" y2="14"/>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="11" x2="12" y2="17" />
+              <line x1="9" y1="14" x2="15" y2="14" />
             </svg>
             <span className="mt-2 text-sm font-medium">New</span>
           </button>
@@ -148,9 +149,9 @@ export default function AddNewPage() {
             className="flex flex-col items-center justify-center w-40 h-36 rounded-xl bg-white border-2 border-gray-200 text-gray-700 hover:border-gray-400 transition cursor-pointer"
           >
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="1.5">
-              <polyline points="21 8 21 21 3 21 3 8"/>
-              <rect x="1" y="3" width="22" height="5"/>
-              <line x1="10" y1="12" x2="14" y2="12"/>
+              <polyline points="21 8 21 21 3 21 3 8" />
+              <rect x="1" y="3" width="22" height="5" />
+              <line x1="10" y1="12" x2="14" y2="12" />
             </svg>
             <span className="px-4 mt-2 text-sm font-medium text-center">Archive Document</span>
           </button>
@@ -162,29 +163,29 @@ export default function AddNewPage() {
 
 // ── New Document Form ─────────────────────────────────────────────────────
 function NewDocumentForm({ onBack }: { onBack: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
-  const [departments, setDepartments]   = useState<Department[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [availableUsers, setAvailableUsers] = useState<UserProfile[]>([])
-  const [file, setFile]                 = useState<File | null>(null)
-  const [isDragging, setIsDragging]     = useState(false)
-  const [showConfirm, setShowConfirm]   = useState(false)
-  const [showSuccess, setShowSuccess]   = useState(false)
-  const [loading, setLoading]           = useState(false)
-  const [error, setError]               = useState("")
+  const [file, setFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
   const [validationError, setValidationError] = useState("")
-  const [invalidFields, setInvalidFields]     = useState<string[]>([])
+  const [invalidFields, setInvalidFields] = useState<string[]>([])
 
   const [formData, setFormData] = useState({
-    documentName:         "",
-    documentType:         "",
-    documentTypeDetail:   "",
+    documentName: "",
+    documentType: "",
+    documentTypeDetail: "",
     submittingDepartment: "",
-    customDepartment:     "",
-    submittedById:        "",
-    customSubmittedBy:    "",
-    documentDescription:  "",
-    correspondingOffice:  "",
+    customDepartment: "",
+    submittedById: "",
+    customSubmittedBy: "",
+    documentDescription: "",
+    correspondingOffice: "",
   })
 
   // ── Fetch Departments ─────────────────────────────────────────────────
@@ -237,18 +238,18 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
   const handleSave = () => {
     const newInvalidFields: string[] = []
 
-    if (!formData.documentName.trim())       newInvalidFields.push("documentName")
-    if (!formData.documentType)              newInvalidFields.push("documentType")
+    if (!formData.documentName.trim()) newInvalidFields.push("documentName")
+    if (!formData.documentType) newInvalidFields.push("documentType")
     else if (!formData.documentTypeDetail.trim()) newInvalidFields.push("documentTypeDetail")
     if (!formData.documentDescription.trim()) newInvalidFields.push("documentDescription")
-    if (!formData.correspondingOffice)       newInvalidFields.push("correspondingOffice")
+    if (!formData.correspondingOffice) newInvalidFields.push("correspondingOffice")
 
     if (formData.submittingDepartment === "others") {
-      if (!formData.customDepartment.trim())  newInvalidFields.push("customDepartment")
+      if (!formData.customDepartment.trim()) newInvalidFields.push("customDepartment")
       if (!formData.customSubmittedBy.trim()) newInvalidFields.push("customSubmittedBy")
     } else {
       if (!formData.submittingDepartment) newInvalidFields.push("submittingDepartment")
-      if (!formData.submittedById)        newInvalidFields.push("submittedById")
+      if (!formData.submittedById) newInvalidFields.push("submittedById")
     }
 
     if (newInvalidFields.length > 0) {
@@ -276,11 +277,17 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
         return
       }
 
-      let fileUrl  = null
+      let fileUrl = null
       let fileName = null
       let fileSize = null
 
       if (file) {
+        if (file.size > 10 * 1024 * 1024) {
+          setError("File must be under 10MB.")
+          setLoading(false)
+          return
+        }
+
         const filePath = `${authUser.id}/${Date.now()}_${file.name}`
         const { error: uploadError } = await supabase.storage
           .from('documents')
@@ -292,81 +299,77 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
           return
         }
 
-        fileUrl  = filePath
+        fileUrl = filePath
         fileName = file.name
         fileSize = file.size
       }
 
-      const finalDocumentType       = formData.documentType === "others" ? "Others" : formData.documentType
+      const finalDocumentType = formData.documentType === "others" ? "Others" : formData.documentType
       const finalDocumentTypeDetail = formData.documentTypeDetail.trim()
-      const finalDepartmentId       = formData.submittingDepartment === "others" ? null : formData.submittingDepartment
-      const finalSubmittedById      = formData.submittingDepartment === "others" ? authUser.id : formData.submittedById
+      const finalDepartmentId = formData.submittingDepartment === "others" ? null : formData.submittingDepartment
+      const finalSubmittedById = formData.submittingDepartment === "others" ? authUser.id : formData.submittedById
 
-      // ── Step 1: Insert document ────────────────────────────────────────
-      const { error: insertError } = await supabase
+      // ── Step 1 & 2: Insert document and get ID immediately ─────────────
+      const { data: insertData, error: insertError } = await supabase
         .from("documents")
         .insert([{
-          title:                formData.documentName,
-          document_type:        finalDocumentType,
+          title: formData.documentName,
+          document_type: finalDocumentType,
           document_type_detail: finalDocumentTypeDetail,
-          description:          formData.documentDescription,
-          module_type:          'process_routing',
-          status:               'in_process',
-          submitted_by:         finalSubmittedById,
-          department_id:        finalDepartmentId,
-          current_office_id:    formData.correspondingOffice,
-          initial_office_id:   formData.correspondingOffice,
-          is_archived:          false,
-          file_url:             fileUrl,
-          file_name:            fileName,
-          file_size:            fileSize,
+          description: formData.documentDescription,
+          module_type: 'process_routing',
+          status: 'in_process',
+          submitted_by: finalSubmittedById,
+          department_id: finalDepartmentId,
+          current_office_id: formData.correspondingOffice,
+          initial_office_id: formData.correspondingOffice,
+          is_archived: false,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_size: fileSize,
         }])
+        .select("id")
+        .single()
 
-      if (insertError) {
-        console.error("Insert error:", insertError.message)
+      if (insertError || !insertData) {
+        console.error("Insert error:", insertError?.message)
         setError("Failed to save document. Please try again.")
         setLoading(false)
         return
       }
 
-      // ── Step 2: Get newly inserted document ID ─────────────────────────
-      const { data: insertData } = await supabase
-        .from("documents")
-        .select("id")
-        .eq("title", formData.documentName)
-        .eq("submitted_by", finalSubmittedById)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single()
+      // ── Step 3: Insert routing, log, and notification ──────────────────
+      const { error: routingError } = await supabase.from('document_routing').insert([{
+        document_id: insertData.id,
+        office_id: formData.correspondingOffice,
+        sequence_order: 1,
+        status: 'pending',
+        received_at: new Date().toISOString(),
+      }])
+      if (routingError) console.error('Routing insert failed:', routingError.message)
 
-      // ── Step 3: Insert first routing step ─────────────────────────────
-      if (insertData) {
-        await supabase.from('document_routing').insert([{
-          document_id:    insertData.id,
-          office_id:      formData.correspondingOffice,
-          sequence_order: 1,
-          status:         'pending',
-          received_at:    new Date().toISOString(),
-        }])
-        //Insert initial document log
-        await supabase.from('document_logs').insert([{
-          document_id:     insertData.id,
-          performed_by:    authUser.id,
-          action:          'Document received',
-          previous_status: null,
-          new_status:      'in_process',
-          office_id:       formData.correspondingOffice,
-          remarks:         'Document received and entered into the system.',
-        }])
-        // ← Add this: Notify the submitter
-        await supabase.from('notifications').insert([{
-          user_id:     finalSubmittedById,
-          document_id: insertData.id,
-          title:       'Document Received',
-          message:     `Your document "${formData.documentName}" has been received and is now being processed.`,
-          is_read:     false,
-        }])
-      }
+      const { error: logError } = await supabase.from('document_logs').insert([{
+        document_id: insertData.id,
+        performed_by: authUser.id,
+        action: 'Document received',
+        previous_status: null,
+        new_status: 'in_process',
+        office_id: formData.correspondingOffice,
+        remarks: 'Document received and entered into the system.',
+      }])
+      if (logError) console.error('Log insert failed:', logError.message)
+
+      // Send both in-app + Brevo email notification
+      await sendAllNotifications({
+        documentId: insertData.id,
+        documentName: formData.documentName,
+        documentType: finalDocumentType,
+        action: 'document_submitted',
+        clientId: finalSubmittedById,
+        sendingOfficeId: authUser.id,
+        receivingOfficeId: formData.correspondingOffice,
+        remarks: '',
+      })
 
       setShowSuccess(true)
 
@@ -383,8 +386,8 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
     ...departments.map(d => ({ label: d.name, value: d.id })),
     { label: "Others (Specify)", value: "others" },
   ]
-  const userOptions    = availableUsers.map(u => ({ label: u.full_name, value: u.id }))
-  const officeOptions  = departments.map(d => ({ label: d.name, value: d.id }))
+  const userOptions = availableUsers.map(u => ({ label: u.full_name, value: u.id }))
+  const officeOptions = departments.map(d => ({ label: d.name, value: d.id }))
 
   // ── JSX ───────────────────────────────────────────────────────────────
   return (
@@ -535,8 +538,8 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
               onChange={(val) => { setFormData({ ...formData, submittedById: val }); clearFieldError("submittedById") }}
               placeholder={
                 !formData.submittingDepartment ? "Please select a department first"
-                : availableUsers.length === 0 ? "No users in this department"
-                : "Select a user..."
+                  : availableUsers.length === 0 ? "No users in this department"
+                    : "Select a user..."
               }
               disabled={!formData.submittingDepartment || formData.submittingDepartment === "others"}
               error={invalidFields.includes("submittedById")}

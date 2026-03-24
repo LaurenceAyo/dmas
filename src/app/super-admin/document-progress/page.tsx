@@ -1,8 +1,10 @@
 'use client'
 import { getStatusBadgeColor, formatStatus } from '@/lib/utils/status'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Filter, Search, ChevronLeft, ChevronRight, ChevronDown, X, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { sendAllNotifications } from '@/lib/notifications/send-all-notifications'
+import type { NotificationAction } from '@/lib/notifications/notification-service'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Document {
@@ -107,7 +109,7 @@ const actionOptions = [
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export default function DocumentProgressPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const [documents, setDocuments]       = useState<Document[]>([])
   const [departments, setDepartments]   = useState<{ id: string; name: string }[]>([])
@@ -245,7 +247,7 @@ export default function DocumentProgressPage() {
         return
       }
 
-      await supabase.from('document_logs').insert([{
+      const { error: logError } = await supabase.from('document_logs').insert([{
         document_id:     selectedDoc.id,
         performed_by:    authUser.id,
         action:          'Status updated',
@@ -254,15 +256,19 @@ export default function DocumentProgressPage() {
         office_id:       corrOffice,
         remarks:         remarks.trim(),
       }])
+      if (logError) console.error('Log insert failed:', logError.message)
 
       if (selectedDoc.submitted_by) {
-        await supabase.from('notifications').insert([{
-          user_id:     selectedDoc.submitted_by,
-          document_id: selectedDoc.id,
-          title:       'Document Status Updated',
-          message:     `Your document "${selectedDoc.title}" status has been updated to ${formatStatus(actionTaken)}.`,
-          is_read:     false,
-        }])
+        await sendAllNotifications({
+          documentId:        selectedDoc.id,
+          documentName:      selectedDoc.title,
+          documentType:      selectedDoc.document_type ?? '',
+          action:            actionTaken as NotificationAction,
+          clientId:          selectedDoc.submitted_by,
+          sendingOfficeId:   authUser.id,
+          receivingOfficeId: corrOffice,
+          remarks:           remarks.trim(),
+        })
       }
 
       await fetchDocuments()

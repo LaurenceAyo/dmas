@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { ChevronRight, Home, ChevronDown, FileText, X } from "lucide-react"
 import Link from "next/link"
@@ -102,7 +102,7 @@ export default function AddNewArchivePage() {
 
 // ── Archive Document Form ─────────────────────────────────────────────────
 function ArchiveDocumentForm() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   // ── State ──────────────────────────────────────────────────────────────
   const [showConfirm, setShowConfirm]   = useState(false)

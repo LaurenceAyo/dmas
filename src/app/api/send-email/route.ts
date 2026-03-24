@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const result = await sendDocumentNotification({
       to,
       senderName: senderName || 'User',
-      senderEmail: senderEmail || 'noreply@buceng.edu.ph',
+      senderEmail: senderEmail || 'noreply@gmail.com',
       recipientName: recipientName || 'Office Head',
       documentName,
       documentType: documentType || 'Document',
