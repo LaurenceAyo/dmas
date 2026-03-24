@@ -8,7 +8,7 @@ export default function AboutPage() {
     {
       name: 'Laurence Lemuel G. Ayo',
       role: 'Full‑Stack Developer',
-      description: 'A Bachelor of Science in Information Technology student in Bicol University College of Science, Laurence has a strong foundation in front end designs and systems-level and object-oriented programming. Proficient in C, C++, C#, and Java, he also has skills in web management. He worked on some projects including a Web app POS entitled "Sip&Serve", which he made it all by himself, including front end backend and quality assurance. Despite rigorous projects, he excels at doing projects without delay.',
+      description: 'A Bachelor of Science in Information Technology student from Bicol University College of Science.  He has built a solid foundation in programming languages including PHP, C, Dart and JavaScript, with proficiency in Flutter Framework. His technical expertise extends to full-stack development, system architecture, database management, and networking fundamentals. He has worked on various personal projects including a capstone frontend and backend for Tarami (Albay Dialect Dictionary Mobile App). He enjoys photography, Super Mario games, films, and coding user‑friendly programs. He can be reached through his college‑provided email vnn2022-3190-16409@bicol-u.edu.ph.',
       image: '/Laurence.png',
     },
     {
