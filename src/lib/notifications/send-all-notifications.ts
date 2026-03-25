@@ -1,4 +1,4 @@
-import { createDocumentNotifications, NotificationAction } from '@/lib/notifications/notification-service'
+import { NotificationAction } from '@/lib/notifications/notification-service'
 import { sendDocumentNotification } from '@/lib/email/send-notification'
 import { createClient } from '@/lib/supabase/client'
 
@@ -32,31 +32,35 @@ export async function sendAllNotifications({
 
   const { data: sendingOffice } = sendingOfficeId
     ? await supabase
-        .from('profiles')
-        .select('email, full_name')
-        .eq('id', sendingOfficeId)
-        .single()
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', sendingOfficeId)
+      .single()
     : { data: null }
 
   const { data: receivingOffice } = receivingOfficeId
     ? await supabase
-        .from('profiles')
-        .select('email, full_name')
-        .eq('id', receivingOfficeId)
-        .single()
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', receivingOfficeId)
+      .single()
     : { data: null }
 
-  // 1. Create in-app notifications
-  await createDocumentNotifications({
-    documentId,
-    documentName,
-    action,
-    clientId,
-    sendingOfficeId,
-    receivingOfficeId,
-    remarks,
-    sendingOfficeName: sendingOffice?.full_name || 'Office',
-    receivingOfficeName: receivingOffice?.full_name || 'Office',
+  // 1. Create in-app notifications via API route (server-side)
+  await fetch('/api/create-notifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      documentId,
+      documentName,
+      action,
+      clientId,
+      sendingOfficeId,
+      receivingOfficeId,
+      remarks,
+      sendingOfficeName: sendingOffice?.full_name || 'Office',
+      receivingOfficeName: receivingOffice?.full_name || 'Office',
+    }),
   })
 
   // 2. Send email notifications
