@@ -6,6 +6,7 @@ import {
   Home, FileText, Inbox, User, LogOut,
   Info,
 } from 'lucide-react'
+import { useRoleProtection } from '@/hooks/useRoleProtection'
 
 const navItems = [
   { label: 'Dashboard',    href: '/client/dashboard',    icon: Home     },
@@ -16,6 +17,7 @@ const navItems = [
 ]
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  useRoleProtection('client')
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
