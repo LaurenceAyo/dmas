@@ -39,7 +39,7 @@ const getStatusColor = (status: string) => {
 const formatStatus = (status: string) => {
   switch (status) {
     case 'in_process':           return 'Received'
-    case 'recommended_approval': return 'Pending Review'
+    case 'recommended_approval': return 'Pending Approval'
     case 'pending':              return 'Pending'
     case 'approved':             return 'Approved'
     case 'denied':               return 'Denied'

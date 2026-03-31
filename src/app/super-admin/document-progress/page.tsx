@@ -1,10 +1,15 @@
 'use client'
-import { getStatusBadgeColor, formatStatus } from '@/lib/utils/status'
+
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Filter, Search, ChevronLeft, ChevronRight, ChevronDown, X, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { getStatusBadgeColor, formatStatus } from '@/lib/utils/status'
 import { sendAllNotifications } from '@/lib/notifications/send-all-notifications'
 import type { NotificationAction } from '@/lib/notifications/notification-service'
+
+// 💡 ARTA Imports
+import { countWorkingDays, addWorkingDays } from '@/lib/utils/workingDays'
+import CountdownBadge from '@/components/shared/CountdownBadge'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Document {
@@ -24,6 +29,11 @@ interface Document {
   departments: { name: string } | null
   profiles: { full_name: string } | null
   current_office: { name: string } | null
+  // 💡 ARTA Fields
+  due_date: string | null
+  paused_at: string | null
+  completed_at: string | null
+  total_paused_days: number | null
 }
 
 // ── Custom Select ─────────────────────────────────────────────────────────
@@ -142,10 +152,11 @@ export default function DocumentProgressPage() {
         id, title, document_type, document_type_detail,
         module_type, status, description, file_url, file_name,
         created_at, updated_at, submitted_by, current_office_id,
+        due_date, paused_at, completed_at, total_paused_days,
         departments!documents_department_id_fkey ( name ),
         profiles!documents_submitted_by_fkey ( full_name ),
         current_office:departments!documents_current_office_id_fkey ( name )
-      `)
+      `) // 💡 ARTA columns fetched here
       .eq('module_type', 'process_routing')
       .neq('status', 'released')
       .order('created_at', { ascending: false })
@@ -156,7 +167,7 @@ export default function DocumentProgressPage() {
       setDocuments((data as any) || [])
     }
     setFetchLoading(false)
-  }, [])
+  }, [supabase])
 
   const fetchDepartments = useCallback(async () => {
     const { data, error } = await supabase
@@ -164,7 +175,7 @@ export default function DocumentProgressPage() {
       .select('id, name')
       .order('name')
     if (!error && data) setDepartments(data)
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     fetchDocuments()
@@ -231,26 +242,62 @@ export default function DocumentProgressPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) { setSubmitError('Not authenticated.'); return }
 
+      // 💡 ARTA Timer Logic Evaluation ───────────────────────────────────
+      const newStatus     = actionTaken
+      const prevStatus    = selectedDoc.status
+      const isPausing     = newStatus === 'recommended_approval'
+      const isResuming    = prevStatus === 'recommended_approval' && newStatus !== 'recommended_approval'
+      const isCompleting = ['released', 'denied'].includes(newStatus)
+
+      const updatePayload: any = {
+        status:            actionTaken,
+        current_office_id: corrOffice,
+        remarks:           remarks.trim(),
+        updated_at:        new Date().toISOString(),
+      }
+
+      // ⏸️ PAUSE
+      if (isPausing && !selectedDoc.paused_at) {
+        updatePayload.paused_at = new Date().toISOString()
+      } 
+      // ▶️ RESUME
+      else if (isResuming && selectedDoc.paused_at) {
+        const pausedAt   = new Date(selectedDoc.paused_at)
+        const pausedDays = countWorkingDays(pausedAt, new Date())
+
+        if (selectedDoc.due_date) {
+          const currentDue    = new Date(selectedDoc.due_date)
+          const newDueDate    = addWorkingDays(currentDue, pausedDays)
+          updatePayload.due_date = newDueDate.toISOString().split('T')[0]
+        }
+        updatePayload.paused_at = null
+        updatePayload.total_paused_days = (selectedDoc.total_paused_days ?? 0) + pausedDays
+      }
+
+      // ✅ COMPLETE
+      if (isCompleting && !selectedDoc.completed_at) {
+        updatePayload.completed_at = new Date().toISOString()
+      }
+      // ────────────────────────────────────────────────────────────────
+
+      // Update Document
       const { error: updateError } = await supabase
         .from('documents')
-        .update({
-          status:            actionTaken,
-          current_office_id: corrOffice,
-          remarks:           remarks.trim(),
-          updated_at:        new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', selectedDoc.id)
 
       if (updateError) {
         setSubmitError('Failed to update document. Please try again.')
         setShowConfirmModal(false)
+        setSubmitLoading(false)
         return
       }
 
+      // Insert Log
       const { error: logError } = await supabase.from('document_logs').insert([{
         document_id:     selectedDoc.id,
         performed_by:    authUser.id,
-        action:          'Status updated',
+        action:          'Status updated (Admin Override)',
         previous_status: selectedDoc.status,
         new_status:      actionTaken,
         office_id:       corrOffice,
@@ -258,6 +305,7 @@ export default function DocumentProgressPage() {
       }])
       if (logError) console.error('Log insert failed:', logError.message)
 
+      // Notify User
       if (selectedDoc.submitted_by) {
         const actionMap: Record<string, NotificationAction> = {
           'in_process':           'document_received',
@@ -330,7 +378,7 @@ export default function DocumentProgressPage() {
       {/* Body */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
 
-        {/* Filters — Department + Status only */}
+        {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex items-center gap-1 text-gray-600">
             <Filter className="w-4 h-4" />
@@ -363,16 +411,17 @@ export default function DocumentProgressPage() {
           </div>
         )}
 
-        {/* Table — no Module column */}
+        {/* Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           <table className="w-full text-sm table-fixed">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="text-gray-500 text-xs uppercase tracking-wide">
-                <th className="text-left px-4 py-3 font-semibold w-[30%]">Document Name</th>
+                <th className="text-left px-4 py-3 font-semibold w-[28%]">Document Name</th>
                 <th className="text-left px-4 py-3 font-semibold w-[25%]">Document Type</th>
-                <th className="text-left px-4 py-3 font-semibold w-[22%]">Department</th>
+                <th className="text-left px-4 py-3 font-semibold w-[20%]">Department</th>
                 <th className="text-left px-4 py-3 font-semibold w-[12%]">Date</th>
-                <th className="text-center px-4 py-3 font-semibold w-[11%]">Status</th>
+                {/* 💡 Combined ARTA Deadline & Status Header */}
+                <th className="text-left px-4 py-3 font-semibold w-[15%]">Status & Deadline</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -401,10 +450,19 @@ export default function DocumentProgressPage() {
                     </td>
                     <td className="px-4 py-3.5 text-gray-500 truncate">{doc.departments?.name ?? '—'}</td>
                     <td className="px-4 py-3.5 text-gray-500 truncate">{formatDate(doc.created_at)}</td>
-                    <td className="px-4 py-3.5 text-center">
-                      <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusBadgeColor(doc.status)}`}>
-                        {formatStatus(doc.status)}
-                      </span>
+                    
+                    {/* 💡 Combined ARTA Deadline & Status Cell */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex flex-col items-start gap-1.5">
+                        <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wider uppercase border ${getStatusBadgeColor(doc.status)}`}>
+                          {formatStatus(doc.status)}
+                        </span>
+                        <CountdownBadge
+                          dueDate={doc.due_date}
+                          isPaused={!!doc.paused_at}
+                          isCompleted={!!doc.completed_at}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -429,7 +487,7 @@ export default function DocumentProgressPage() {
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-40"
+                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-40 cursor-pointer"
               >
                 <ChevronLeft size={14} className="text-gray-500" />
               </button>
@@ -446,7 +504,7 @@ export default function DocumentProgressPage() {
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-40"
+                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition disabled:opacity-40 cursor-pointer"
               >
                 <ChevronRight size={14} className="text-gray-500" />
               </button>
@@ -476,7 +534,7 @@ export default function DocumentProgressPage() {
               </div>
               <button
                 onClick={() => setSelectedDoc(null)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400"
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -622,14 +680,14 @@ export default function DocumentProgressPage() {
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => setShowConfirmModal(false)}
-                    className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirmSubmit}
                     disabled={submitLoading}
-                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition disabled:opacity-60"
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition disabled:opacity-60 cursor-pointer"
                   >
                     {submitLoading ? 'Saving...' : 'Confirm'}
                   </button>

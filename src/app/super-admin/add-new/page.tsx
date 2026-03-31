@@ -7,6 +7,8 @@ import { ChevronRight, Home, ChevronDown, FileText, X } from "lucide-react"
 import Link from "next/link"
 import { sendAllNotifications } from '@/lib/notifications/send-all-notifications'
 
+import { addWorkingDays } from '@/lib/utils/workingDays'
+
 // ── Custom Select Component ───────────────────────────────────────────────
 function CustomSelect({
   options, value, onChange, placeholder, error = false, disabled = false
@@ -199,7 +201,7 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
       else console.error('Error fetching departments:', error?.message)
     }
     fetchDepartments()
-  }, [])
+  }, [supabase])
 
   // ── Fetch Users by Department ─────────────────────────────────────────
   const fetchUsersByDepartment = async (departmentId: string) => {
@@ -309,6 +311,21 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
       const finalDepartmentId = formData.submittingDepartment === "others" ? null : formData.submittingDepartment
       const finalSubmittedById = formData.submittingDepartment === "others" ? authUser.id : formData.submittedById
 
+      // 💡 ARTA TIMER LOGIC ADDED HERE! ──────────────────────────────────
+      // 1. Fetch SLA working days for this document type
+      const { data: slaData } = await supabase
+        .from('document_type_sla')
+        .select('working_days')
+        .eq('document_type', finalDocumentType)
+        .single()
+
+      const workingDays = slaData?.working_days ?? 7 // fallback to 7 days if not found in db
+
+      // 2. Calculate due date (skip weekends) using your custom utility
+      const dueDate = addWorkingDays(new Date(), workingDays)
+      const dueDateStr = dueDate.toISOString().split('T')[0] // formats as YYYY-MM-DD
+      // ──────────────────────────────────────────────────────────────────
+
       // ── Step 1 & 2: Insert document and get ID immediately ─────────────
       const { data: insertData, error: insertError } = await supabase
         .from("documents")
@@ -327,6 +344,8 @@ function NewDocumentForm({ onBack }: { onBack: () => void }) {
           file_url: fileUrl,
           file_name: fileName,
           file_size: fileSize,
+          // 💡 ARTA INSERT FIELD ADDED HERE!
+          due_date: dueDateStr, 
         }])
         .select("id")
         .single()

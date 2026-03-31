@@ -7,6 +7,10 @@ import { getStatusBadgeColor, formatStatus } from '@/lib/utils/status'
 import { sendAllNotifications } from '@/lib/notifications/send-all-notifications'
 import type { NotificationAction } from '@/lib/notifications/notification-service'
 
+// 💡 ARTA Imports!
+import { countWorkingDays, addWorkingDays } from '@/lib/utils/workingDays'
+import CountdownBadge from '@/components/shared/CountdownBadge'
+
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Document {
   id: string
@@ -24,6 +28,11 @@ interface Document {
   current_office_id: string | null
   departments: { name: string } | null
   profiles: { full_name: string } | null
+  // 💡 ARTA Fields Added Here!
+  due_date: string | null
+  paused_at: string | null
+  completed_at: string | null
+  total_paused_days: number | null
 }
 
 // ── Custom Select ─────────────────────────────────────────────────────────
@@ -153,7 +162,7 @@ export default function ActionQueuePage() {
       .single()
 
     if (profile) setCurrentUser(profile)
-  }, [])
+  }, [supabase])
 
   // ── Fetch Documents Routed to This Office ─────────────────────────────
   const fetchDocuments = useCallback(async () => {
@@ -167,22 +176,12 @@ export default function ActionQueuePage() {
     const { data, error } = await supabase
       .from('documents')
       .select(`
-        id,
-        title,
-        document_type,
-        document_type_detail,
-        status,
-        description,
-        file_url,
-        file_name,
-        remarks,
-        created_at,
-        updated_at,
-        submitted_by,
-        current_office_id,
+        id, title, document_type, document_type_detail, status, description, 
+        file_url, file_name, remarks, created_at, updated_at, submitted_by, current_office_id,
+        due_date, paused_at, completed_at, total_paused_days,
         departments!documents_department_id_fkey ( name ),
         profiles!documents_submitted_by_fkey ( full_name )
-      `)
+      `) // 💡 Added ARTA fields to select
       .eq('module_type', 'process_routing')
       .eq('current_office_id', currentUser.department_id)
       .neq('status', 'released')
@@ -196,7 +195,7 @@ export default function ActionQueuePage() {
     }
 
     setFetchLoading(false)
-  }, [currentUser])
+  }, [currentUser, supabase])
 
   // ── Fetch All Departments ─────────────────────────────────────────────
   const fetchDepartments = useCallback(async () => {
@@ -205,7 +204,7 @@ export default function ActionQueuePage() {
       .select('id, name')
       .order('name')
     if (data) setDepartments(data)
-  }, [])
+  }, [supabase])
 
   useEffect(() => { fetchCurrentUser() }, [fetchCurrentUser])
 
@@ -293,15 +292,50 @@ export default function ActionQueuePage() {
     setSubmitLoading(true)
 
     try {
-      // 1. Update document status
+      // 💡 ARTA Timer Logic Evaluation ───────────────────────────────────
+      const newStatus     = actionTaken
+      const prevStatus    = selectedDoc.status
+      const isPausing     = newStatus === 'recommended_approval'
+      const isResuming    = prevStatus === 'recommended_approval' && newStatus !== 'recommended_approval'
+      const isCompleting = ['released', 'denied'].includes(newStatus)
+
+      // Base update payload
+      const updatePayload: any = {
+        status: actionTaken,
+        current_office_id: corrOffice,
+        remarks: remarks.trim(),
+        updated_at: new Date().toISOString(),
+      }
+
+      // ⏸️ PAUSE: If we are pausing and it wasn't already paused
+      if (isPausing && !selectedDoc.paused_at) {
+        updatePayload.paused_at = new Date().toISOString()
+      } 
+      // ▶️ RESUME: If we are resuming from a paused state
+      else if (isResuming && selectedDoc.paused_at) {
+        const pausedAt   = new Date(selectedDoc.paused_at)
+        const pausedDays = countWorkingDays(pausedAt, new Date())
+
+        if (selectedDoc.due_date) {
+          const currentDue    = new Date(selectedDoc.due_date)
+          const newDueDate    = addWorkingDays(currentDue, pausedDays)
+          updatePayload.due_date = newDueDate.toISOString().split('T')[0]
+        }
+
+        updatePayload.paused_at = null
+        updatePayload.total_paused_days = (selectedDoc.total_paused_days ?? 0) + pausedDays
+      }
+
+      // ✅ COMPLETE: Stop the clock forever
+      if (isCompleting && !selectedDoc.completed_at) {
+        updatePayload.completed_at = new Date().toISOString()
+      }
+      // ────────────────────────────────────────────────────────────────
+
+      // 1. Update document status (Includes all ARTA updates dynamically!)
       const { error: updateError } = await supabase
         .from('documents')
-        .update({
-          status: actionTaken,
-          current_office_id: corrOffice,
-          remarks: remarks.trim(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', selectedDoc.id)
 
       if (updateError) {
@@ -335,7 +369,7 @@ export default function ActionQueuePage() {
         if (routingError) console.error('Routing insert failed:', routingError.message)
       }
 
-      // 4. Notify the submitter (in-app + email via sendAllNotifications only — no manual insert)
+      // 4. Notify the submitter
       if (selectedDoc.submitted_by) {
         const actionMap: Record<string, NotificationAction> = {
           'in_process':           'document_received',
@@ -471,16 +505,16 @@ export default function ActionQueuePage() {
                 <tr className="border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wide">
                   <th className="text-left px-6 py-3 font-semibold">Document Name</th>
                   <th className="text-left px-6 py-3 font-semibold">Document Type</th>
-                  <th className="text-left px-6 py-3 font-semibold">Submitting Department</th>
+                  <th className="text-left px-6 py-3 font-semibold">Submitting Dept</th>
                   <th className="text-left px-6 py-3 font-semibold">Date Received</th>
-                  <th className="text-left px-6 py-3 font-semibold">Status</th>
+                  <th className="text-left px-6 py-3 font-semibold">Status & Deadline</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {fetchLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 5 }).map((_, j) => (
+                      {Array.from({ length: 6 }).map((_, j) => (
                         <td key={j} className="px-6 py-3.5">
                           <div className="h-3 bg-gray-100 rounded animate-pulse" />
                         </td>
@@ -502,16 +536,25 @@ export default function ActionQueuePage() {
                       </td>
                       <td className="px-6 py-3.5 text-gray-500">{doc.departments?.name ?? '—'}</td>
                       <td className="px-6 py-3.5 text-gray-500">{formatDate(doc.created_at)}</td>
+                      
+                      {/* 💡 Countdown Badge Inserted Here */}
                       <td className="px-6 py-3.5">
-                        <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-semibold ${getStatusBadgeColor(doc.status)}`}>
-                          {formatStatus(doc.status)}
-                        </span>
+                        <div className="flex flex-col items-start gap-1.5">
+                          <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wider uppercase border ${getStatusBadgeColor(doc.status)}`}>
+                            {formatStatus(doc.status)}
+                          </span>
+                          <CountdownBadge
+                            dueDate={doc.due_date}
+                            isPaused={!!doc.paused_at}
+                            isCompleted={!!doc.completed_at}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400 text-sm">
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400 text-sm">
                       {currentUser?.department_id
                         ? 'No documents in your queue.'
                         : 'No department assigned yet.'}
