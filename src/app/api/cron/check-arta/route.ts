@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 const SUPABASE_URL   = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const BREVO_API_KEY  = process.env.BREVO_API_KEY!
-const FROM_EMAIL     = 'laurenceayo7@10856946.brevosend.com' // Change this to your verified Brevo email
+const FROM_EMAIL     = 'laurenceayo7@gmail.com' 
 const FROM_NAME      = 'DMAS — Bicol University'
 
 // ── Working Days Left Calculator ──────────────────────────────────────────
