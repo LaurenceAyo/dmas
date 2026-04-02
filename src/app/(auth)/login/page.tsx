@@ -1,5 +1,6 @@
 'use client'
-
+import { Suspense } from 'react'
+import LoginForm from './LoginForm'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
