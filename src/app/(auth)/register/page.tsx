@@ -15,7 +15,6 @@ export default function RegisterPage() {
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: { hd: 'bicol-u.edu.ph' },
       },
     })
     if (error) {
@@ -31,17 +30,38 @@ export default function RegisterPage() {
         {/* Left Panel */}
         <div className="hidden md:flex w-1/2 bg-gradient-to-br from-blue-500 to-blue-700 items-center justify-center p-12">
           <div className="text-white text-center">
+
+            {/* Logo */}
+            <div className="mb-6 flex justify-center">
+              <img
+                src="/bucenglogo.png"
+                alt="BUCENG Logo"
+                className="w-32 h-32 object-contain drop-shadow-lg"
+              />
+            </div>
+
+            {/* ✅ Updated Text */}
             <h1 className="text-5xl font-extrabold leading-tight mb-4">
-              Hello,<br />Friend!
+              Welcome,<br /> New User
             </h1>
             <p className="text-blue-100 text-sm">
-              Fill up personal information and start journey with us.
+              Access and monitor your academic documents with ease.
             </p>
           </div>
         </div>
 
         {/* Right Panel */}
         <div className="w-full md:w-1/2 bg-white p-10 flex flex-col justify-center">
+
+          {/* Mobile Logo */}
+          <div className="flex justify-center mb-4 md:hidden">
+            <img
+              src="/bucenglogo.png"
+              alt="BUCENG Logo"
+              className="w-20 h-20 object-contain"
+            />
+          </div>
+
           <h2 className="text-3xl font-bold text-gray-800 mb-1">Sign Up</h2>
           <p className="text-gray-400 text-sm mb-6">Let's get started.</p>
 
@@ -51,7 +71,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* Form fields (UI only - Google handles actual registration) */}
+          {/* Form fields (UI only) */}
           <div className="flex gap-3 mb-3">
             <input
               type="text"
