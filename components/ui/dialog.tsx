@@ -77,6 +77,8 @@ function DialogContent({
               <span className="sr-only">Close</span>
             </Button>
           </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Content>
     </DialogPortal>
   )
 }
