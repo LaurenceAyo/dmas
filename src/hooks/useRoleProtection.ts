@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -16,7 +15,7 @@ export function useRoleProtection(requiredRole: UserRole) {
   useEffect(() => {
     const checkRole = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-
+      
       if (!user) {
         router.push('/login')
         return
@@ -47,7 +46,7 @@ export function useRoleProtection(requiredRole: UserRole) {
           office_head: '/office-head/dashboard',
           client: '/client/dashboard',
         }
-        router.push(roleRedirectMap[profile.role])
+        router.push(roleRedirectMap[profile.role as UserRole])
       }
     }
 
