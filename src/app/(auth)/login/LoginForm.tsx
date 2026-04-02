@@ -1,15 +1,10 @@
-'use client'
+import { Suspense } from 'react'
+import LoginForm from './LoginForm'
 
-import { createClient } from '@/lib/supabase/client'
-import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
-
-export default function LoginForm() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [termsAccepted, setTermsAccepted] = useState(false)
-  const [showTermsModal, setShowTermsModal] = useState(false)
-
-  const searchParams = useSearchParams()
-  const supabase = createClient()
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginForm />
+    </Suspense>
+  )
 }
